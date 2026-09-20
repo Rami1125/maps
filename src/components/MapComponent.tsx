@@ -1,6 +1,6 @@
 import React, { useEffect, useRef } from 'react';
 import L from 'leaflet';
-import { ClientSite, DepotInfo } from '../types';
+import { ClientSite, DepotInfo, DeliveryRound } from '../types';
 
 interface MapComponentProps {
   depot: DepotInfo;
@@ -10,6 +10,9 @@ interface MapComponentProps {
   onSelectDepot: () => void;
   isDepotSelected: boolean;
   mapLayerType: 'standard' | 'voyager' | 'dark' | 'satellite';
+  deliveryRound?: DeliveryRound | null;
+  isRoutePlannerActive?: boolean;
+  onMapClick?: (lat: number, lng: number) => void;
 }
 
 export const MapComponent: React.FC<MapComponentProps> = ({
@@ -20,12 +23,16 @@ export const MapComponent: React.FC<MapComponentProps> = ({
   onSelectDepot,
   isDepotSelected,
   mapLayerType,
+  deliveryRound,
+  isRoutePlannerActive = false,
+  onMapClick,
 }) => {
   const mapContainerRef = useRef<HTMLDivElement>(null);
   const mapInstanceRef = useRef<L.Map | null>(null);
   const markersRef = useRef<{ [key: string]: L.Marker }>({});
   const depotMarkerRef = useRef<L.Marker | null>(null);
   const routePolylineRef = useRef<L.Polyline | null>(null);
+  const multiStopPolylineRef = useRef<L.Polyline | null>(null);
   const tileLayerRef = useRef<L.TileLayer | null>(null);
 
   // Initialize Map
@@ -35,12 +42,18 @@ export const MapComponent: React.FC<MapComponentProps> = ({
     const map = L.map(mapContainerRef.current, {
       center: [depot.lat, depot.lng],
       zoom: 12,
-      zoomControl: false, // We'll reposition zoom control to bottom-left to not clash with top floating bars
+      zoomControl: false,
       attributionControl: true,
     });
 
     // Add zoom control at bottom-left
     L.control.zoom({ position: 'bottomleft' }).addTo(map);
+
+    if (onMapClick) {
+      map.on('click', (e: L.LeafletMouseEvent) => {
+        onMapClick(e.latlng.lat, e.latlng.lng);
+      });
+    }
 
     mapInstanceRef.current = map;
 
@@ -48,7 +61,7 @@ export const MapComponent: React.FC<MapComponentProps> = ({
       map.remove();
       mapInstanceRef.current = null;
     };
-  }, [depot.lat, depot.lng]);
+  }, [depot.lat, depot.lng, onMapClick]);
 
   // Update Tile Layer based on layer type
   useEffect(() => {
@@ -60,7 +73,7 @@ export const MapComponent: React.FC<MapComponentProps> = ({
     }
 
     let url = 'https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png';
-    let attribution = '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions">CARTO</a>';
+    let attribution = '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> &copy; <a href="https://carto.com/attributions">CARTO</a>';
 
     if (mapLayerType === 'standard') {
       url = 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png';
@@ -69,7 +82,7 @@ export const MapComponent: React.FC<MapComponentProps> = ({
       url = 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png';
     } else if (mapLayerType === 'satellite') {
       url = 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}';
-      attribution = 'Tiles &copy; Esri &mdash; Source: Esri, i-cubed, USDA, USGS, AEX, GeoEye, Getmapping, Aerogrid, IGN, IGP, UPR-EGP, and the GIS User Community';
+      attribution = 'Tiles &copy; Esri &mdash; Source: Esri, i-cubed, USDA, USGS';
     }
 
     const tileLayer = L.tileLayer(url, {
@@ -95,8 +108,8 @@ export const MapComponent: React.FC<MapComponentProps> = ({
         <div class="w-10 h-10 rounded-2xl bg-gradient-to-br from-blue-700 to-indigo-900 border-2 border-amber-400 shadow-xl flex items-center justify-center text-white text-lg font-bold transform transition-transform hover:scale-110">
           🏗️
         </div>
-        <div class="absolute -bottom-6 bg-blue-900/90 backdrop-blur-sm text-amber-300 font-bold text-[11px] px-2 py-0.5 rounded-full border border-amber-400/50 shadow-md whitespace-nowrap">
-          מגרש סבן (בסיס)
+        <div class="absolute -bottom-6 bg-blue-900/95 backdrop-blur-sm text-amber-300 font-bold text-[11px] px-2 py-0.5 rounded-full border border-amber-400/50 shadow-md whitespace-nowrap">
+          מגרש סבן (בסיס מוצא)
         </div>
       </div>
     `;
@@ -131,29 +144,49 @@ export const MapComponent: React.FC<MapComponentProps> = ({
       const isSelected = selectedClient?.id === client.id;
       const isProblematic = client.status === 'problematic';
 
-      const bgClass = isProblematic
-        ? 'bg-rose-600 border-rose-200'
-        : 'bg-emerald-600 border-emerald-100';
+      // Check if client is part of the multi-stop delivery round
+      const routeStop = deliveryRound?.stops.find((s) => s.client.id === client.id);
 
-      const iconEmoji = isProblematic ? '⚠️' : '📍';
-      const glowRing = isSelected
-        ? '<div class="absolute -inset-2 rounded-full bg-amber-400 opacity-70 animate-ping"></div>'
-        : '';
-      const ringBorder = isSelected
-        ? 'ring-4 ring-amber-400 ring-offset-2 scale-110'
-        : 'hover:scale-110';
+      let markerHtml = '';
 
-      const markerHtml = `
-        <div class="relative flex flex-col items-center justify-center cursor-pointer transition-all duration-200">
-          ${glowRing}
-          <div class="w-8 h-8 rounded-full ${bgClass} ${ringBorder} text-white shadow-lg flex items-center justify-center text-xs font-black border-2 transition-transform">
-            ${iconEmoji}
+      if (routeStop) {
+        // Multi-stop waypoint marker (e.g. Stop #1, #2, #3)
+        markerHtml = `
+          <div class="relative flex flex-col items-center justify-center cursor-pointer transition-all duration-200">
+            <div class="absolute -inset-2 rounded-full bg-blue-500 opacity-50 animate-pulse"></div>
+            <div class="w-9 h-9 rounded-full bg-blue-600 border-2 border-white text-white shadow-xl flex items-center justify-center text-sm font-black ring-4 ring-blue-300 transform scale-110">
+              ${routeStop.stopIndex}
+            </div>
+            <div class="mt-1 bg-neutral-900 text-white font-black text-[10px] px-2 py-0.5 rounded-full shadow border border-blue-400 max-w-[120px] truncate text-center pointer-events-none">
+              תחנה #${routeStop.stopIndex}: ${client.name.split('/')[0]}
+            </div>
           </div>
-          <div class="mt-1 bg-white/95 backdrop-blur-xs text-neutral-800 font-bold text-[10px] px-1.5 py-0.5 rounded shadow border border-neutral-200 max-w-[110px] truncate text-center pointer-events-none">
-            ${client.name.split('/')[0]}
+        `;
+      } else {
+        const bgClass = isProblematic
+          ? 'bg-rose-600 border-rose-200'
+          : 'bg-emerald-600 border-emerald-100';
+
+        const iconEmoji = isProblematic ? '⚠️' : '📍';
+        const glowRing = isSelected
+          ? '<div class="absolute -inset-2 rounded-full bg-amber-400 opacity-70 animate-ping"></div>'
+          : '';
+        const ringBorder = isSelected
+          ? 'ring-4 ring-amber-400 ring-offset-2 scale-110'
+          : 'hover:scale-110';
+
+        markerHtml = `
+          <div class="relative flex flex-col items-center justify-center cursor-pointer transition-all duration-200">
+            ${glowRing}
+            <div class="w-8 h-8 rounded-full ${bgClass} ${ringBorder} text-white shadow-lg flex items-center justify-center text-xs font-black border-2 transition-transform">
+              ${iconEmoji}
+            </div>
+            <div class="mt-1 bg-white/95 backdrop-blur-xs text-neutral-800 font-bold text-[10px] px-1.5 py-0.5 rounded shadow border border-neutral-200 max-w-[110px] truncate text-center pointer-events-none">
+              ${client.name.split('/')[0]}
+            </div>
           </div>
-        </div>
-      `;
+        `;
+      }
 
       const customIcon = L.divIcon({
         className: 'custom-client-pin',
@@ -168,11 +201,12 @@ export const MapComponent: React.FC<MapComponentProps> = ({
           onSelectClient(client);
         });
 
-      // Simple hover tooltip
+      // Hover tooltip
       marker.bindTooltip(`
-        <div class="p-1 text-right dir-rtl font-['Assistant']">
+        <div class="p-1.5 text-right dir-rtl font-['Assistant']">
           <div class="font-bold text-xs text-neutral-900">${client.name}</div>
           <div class="text-[11px] text-neutral-600">${client.address}, ${client.city}</div>
+          ${routeStop ? `<div class="mt-1 text-[10px] font-extrabold text-blue-600">🎯 תחנה #${routeStop.stopIndex} בסבב (LIFO העמסה #${routeStop.loadingOrder})</div>` : ''}
           <div class="mt-0.5 text-[10px] font-bold ${isProblematic ? 'text-rose-600' : 'text-emerald-600'}">
             ${isProblematic ? '⚠️ אתר בעייתי (+10% סיכון)' : '🟢 אתר תקין (שוטף)'}
           </div>
@@ -181,9 +215,45 @@ export const MapComponent: React.FC<MapComponentProps> = ({
 
       markersRef.current[client.id] = marker;
     });
-  }, [clients, selectedClient, onSelectClient]);
+  }, [clients, selectedClient, deliveryRound, onSelectClient]);
 
-  // Route Polyline & FlyTo when selectedClient changes
+  // Multi-Stop Circuit Polyline when in Route Planner mode
+  useEffect(() => {
+    const map = mapInstanceRef.current;
+    if (!map) return;
+
+    if (multiStopPolylineRef.current) {
+      map.removeLayer(multiStopPolylineRef.current);
+      multiStopPolylineRef.current = null;
+    }
+
+    if (isRoutePlannerActive && deliveryRound && deliveryRound.stops.length > 0) {
+      // Build circuit: Depot -> Stop 1 -> Stop 2 -> ... -> Stop N -> Depot
+      const circuitCoords: [number, number][] = [
+        [depot.lat, depot.lng],
+        ...deliveryRound.stops.map((s) => [s.client.lat, s.client.lng] as [number, number]),
+        [depot.lat, depot.lng],
+      ];
+
+      const polyline = L.polyline(circuitCoords, {
+        color: '#2563eb', // Blue-600
+        weight: 5,
+        opacity: 0.9,
+        lineJoin: 'round',
+      }).addTo(map);
+
+      multiStopPolylineRef.current = polyline;
+
+      // Fit bounds to show all circuit stops
+      try {
+        map.fitBounds(polyline.getBounds(), { padding: [60, 60], maxZoom: 14 });
+      } catch {
+        // Fallback
+      }
+    }
+  }, [isRoutePlannerActive, deliveryRound, depot]);
+
+  // Single Route Polyline & FlyTo when selectedClient changes (if not in multi-stop mode)
   useEffect(() => {
     const map = mapInstanceRef.current;
     if (!map) return;
@@ -193,13 +263,12 @@ export const MapComponent: React.FC<MapComponentProps> = ({
       routePolylineRef.current = null;
     }
 
-    if (selectedClient) {
+    if (!isRoutePlannerActive && selectedClient) {
       const latlngs: [number, number][] = [
         [depot.lat, depot.lng],
         [selectedClient.lat, selectedClient.lng],
       ];
 
-      // Draw direct connecting route line
       const polyline = L.polyline(latlngs, {
         color: selectedClient.status === 'problematic' ? '#e11d48' : '#059669',
         weight: 4,
@@ -209,8 +278,6 @@ export const MapComponent: React.FC<MapComponentProps> = ({
 
       routePolylineRef.current = polyline;
 
-      // Fly to view both or center on client with offset for floating right card
-      // In RTL desktop, the card is on the right, so we offset slightly left
       const isDesktop = window.innerWidth >= 768;
       const targetLng = isDesktop ? selectedClient.lng + 0.015 : selectedClient.lng;
 
@@ -219,7 +286,7 @@ export const MapComponent: React.FC<MapComponentProps> = ({
         easeLinearity: 0.25,
       });
     }
-  }, [selectedClient, depot]);
+  }, [selectedClient, depot, isRoutePlannerActive]);
 
   return (
     <div className="relative w-full h-full">

@@ -1,7 +1,9 @@
-import React, { useState, useMemo, useCallback } from 'react';
-import { ClientSite, TruckType, District } from './types';
+import React, { useState, useMemo, useCallback, useEffect } from 'react';
+import { ClientSite, TruckType, District, DeliveryRound } from './types';
 import { CLIENT_SITES, DEPOT, TRUCKS } from './data/clients';
 import { calculateDeliveryCostAndPrice } from './utils/pricing';
+import { buildDeliveryRound } from './utils/routePlanner';
+import { fetchClientsFromSheets, SyncStatus } from './services/sheetsService';
 import { MapComponent } from './components/MapComponent';
 import { SearchBar } from './components/SearchBar';
 import { TruckToolbar } from './components/TruckToolbar';
@@ -9,12 +11,24 @@ import { ClientDetailsCard } from './components/ClientDetailsCard';
 import { DepotDetailsCard } from './components/DepotDetailsCard';
 import { WhatsAppModal } from './components/WhatsAppModal';
 import { MapControls } from './components/MapControls';
-import { Building2, Sparkles, Navigation, Layers } from 'lucide-react';
+import { RoutePlanner } from './components/RoutePlanner';
+import { AddClientModal } from './components/AddClientModal';
+import { SyncSettingsModal } from './components/SyncSettingsModal';
+import {
+  Building2,
+  Sparkles,
+  Navigation,
+  Layers,
+  Route,
+  RefreshCw,
+  Plus,
+  FileSpreadsheet,
+  CheckCircle2,
+} from 'lucide-react';
 
 export default function App() {
-  const [clients] = useState<ClientSite[]>(CLIENT_SITES);
+  const [clients, setClients] = useState<ClientSite[]>(CLIENT_SITES);
   const [selectedClient, setSelectedClient] = useState<ClientSite | null>(() => {
-    // Default open the first client or null
     return CLIENT_SITES[0] || null;
   });
   const [isDepotSelected, setIsDepotSelected] = useState<boolean>(false);
@@ -22,9 +36,67 @@ export default function App() {
   const [fuelRateNis, setFuelRateNis] = useState<number>(6.5);
   const [activeFilter, setActiveFilter] = useState<string>('all');
   const [mapLayerType, setMapLayerType] = useState<'standard' | 'voyager' | 'dark' | 'satellite'>('voyager');
+
+  // Modals state
   const [isWhatsAppModalOpen, setIsWhatsAppModalOpen] = useState<boolean>(false);
+  const [isAddClientModalOpen, setIsAddClientModalOpen] = useState<boolean>(false);
+  const [isSyncModalOpen, setIsSyncModalOpen] = useState<boolean>(false);
+  const [isRoutePlannerOpen, setIsRoutePlannerOpen] = useState<boolean>(false);
+
+  // Multi-Stop Route Planner state (2-5 stops)
+  const [routeStops, setRouteStops] = useState<ClientSite[]>([]);
+
+  // Google Sheets Sync State
+  const [customScriptUrl, setCustomScriptUrl] = useState<string>(() => {
+    return localStorage.getItem('saban_custom_script_url') || '';
+  });
+  const [isSyncLoading, setIsSyncLoading] = useState<boolean>(false);
+  const [syncStatus, setSyncStatus] = useState<SyncStatus>({
+    source: 'local_database',
+    syncedAt: new Date(),
+    count: CLIENT_SITES.length,
+    message: 'מאגר מקומי טעון (63 לקוחות היסטוריים ומדויקים של ח. סבן חומרי בניין)',
+    isLive: false,
+  });
 
   const currentTruck = TRUCKS[currentTruckType];
+
+  // Try initial sync with Google Sheets on load
+  useEffect(() => {
+    let isMounted = true;
+    const syncInitial = async () => {
+      setIsSyncLoading(true);
+      const result = await fetchClientsFromSheets(customScriptUrl);
+      if (isMounted) {
+        if (result.status.isLive && result.clients.length > 0) {
+          setClients(result.clients);
+        }
+        setSyncStatus(result.status);
+        setIsSyncLoading(false);
+      }
+    };
+
+    syncInitial();
+    return () => {
+      isMounted = false;
+    };
+  }, [customScriptUrl]);
+
+  // Handle Manual Google Sheets Refresh
+  const handleRefreshSheets = async () => {
+    setIsSyncLoading(true);
+    const result = await fetchClientsFromSheets(customScriptUrl);
+    if (result.clients && result.clients.length > 0) {
+      setClients(result.clients);
+    }
+    setSyncStatus(result.status);
+    setIsSyncLoading(false);
+  };
+
+  const handleUpdateScriptUrl = (url: string) => {
+    setCustomScriptUrl(url);
+    localStorage.setItem('saban_custom_script_url', url);
+  };
 
   // Filter clients based on filter chips
   const filteredClients = useMemo(() => {
@@ -43,6 +115,34 @@ export default function App() {
     return calculateDeliveryCostAndPrice(selectedClient, currentTruck, fuelRateNis);
   }, [selectedClient, currentTruck, fuelRateNis]);
 
+  // Multi-stop delivery round calculation
+  const deliveryRound: DeliveryRound | null = useMemo(() => {
+    if (routeStops.length === 0) return null;
+    return buildDeliveryRound(routeStops, currentTruck, fuelRateNis);
+  }, [routeStops, currentTruck, fuelRateNis]);
+
+  // Route stop operations
+  const handleAddStopToRoute = useCallback((client: ClientSite) => {
+    setRouteStops((prev) => {
+      if (prev.some((s) => s.id === client.id)) return prev;
+      if (prev.length >= 5) return prev; // max 5 stops
+      return [...prev, client];
+    });
+    setIsRoutePlannerOpen(true);
+  }, []);
+
+  const handleRemoveStopFromRoute = useCallback((clientId: string) => {
+    setRouteStops((prev) => prev.filter((s) => s.id !== clientId));
+  }, []);
+
+  const handleReorderRouteStops = useCallback((newStops: ClientSite[]) => {
+    setRouteStops(newStops);
+  }, []);
+
+  const handleClearAllRouteStops = useCallback(() => {
+    setRouteStops([]);
+  }, []);
+
   const handleSelectClient = useCallback((client: ClientSite) => {
     setSelectedClient(client);
     setIsDepotSelected(false);
@@ -58,6 +158,14 @@ export default function App() {
     setIsDepotSelected(false);
   }, []);
 
+  // When a newly geocoded client is added
+  const handleClientAdded = useCallback((newClient: ClientSite) => {
+    setClients((prev) => [newClient, ...prev]);
+    setSelectedClient(newClient);
+    setIsDepotSelected(false);
+    setIsAddClientModalOpen(false);
+  }, []);
+
   return (
     <div className="relative w-screen h-screen overflow-hidden select-none bg-neutral-100 font-['Assistant',sans-serif] text-neutral-900 dir-rtl">
       {/* 1. Full Screen Interactive Map */}
@@ -70,6 +178,8 @@ export default function App() {
           onSelectDepot={handleSelectDepot}
           isDepotSelected={isDepotSelected}
           mapLayerType={mapLayerType}
+          deliveryRound={deliveryRound}
+          isRoutePlannerActive={isRoutePlannerOpen}
         />
       </div>
 
@@ -87,12 +197,12 @@ export default function App() {
                 ח. סבן חומרי בניין (1994) בע״מ
               </h1>
               <p className="text-[10px] text-amber-400 font-medium leading-tight mt-0.5">
-                SabanOS Live Map & Client Discovery
+                SabanOS Live Dispatch & Fleet Map v2.0
               </p>
             </div>
           </div>
 
-          {/* Floating Search Bar */}
+          {/* Floating Search Bar with Geocoding trigger */}
           <SearchBar
             clients={clients}
             selectedClient={selectedClient}
@@ -100,11 +210,57 @@ export default function App() {
             activeFilter={activeFilter}
             onFilterChange={setActiveFilter}
             onResetToDepot={handleSelectDepot}
+            onOpenAddClientModal={() => setIsAddClientModalOpen(true)}
           />
         </div>
 
-        {/* Left Section in RTL: Truck Switcher & Fuel Rate Toolbar */}
-        <div className="pointer-events-auto">
+        {/* Left Section in RTL: Action Controls, Truck Switcher & Sync Status */}
+        <div className="flex flex-wrap items-center gap-2 pointer-events-auto">
+          {/* Multi-Stop Route Planner Toggle Button */}
+          <button
+            type="button"
+            onClick={() => setIsRoutePlannerOpen(!isRoutePlannerOpen)}
+            className={`px-3.5 py-2 rounded-2xl font-bold text-xs flex items-center gap-2 shadow-lg transition-all cursor-pointer ${
+              isRoutePlannerOpen
+                ? 'bg-blue-600 text-white ring-2 ring-blue-400'
+                : routeStops.length > 0
+                ? 'bg-white text-blue-700 border border-blue-300 animate-pulse'
+                : 'bg-white/95 text-neutral-800 hover:bg-neutral-100 border border-neutral-200'
+            }`}
+          >
+            <Route className="w-4 h-4 text-blue-500" />
+            <span>סבב חלוקה {routeStops.length > 0 ? `(${routeStops.length})` : ''}</span>
+          </button>
+
+          {/* Add Client / Geocoding button */}
+          <button
+            type="button"
+            onClick={() => setIsAddClientModalOpen(true)}
+            title="איתור גיאוגרפי של כתובת חדשה"
+            className="px-3 py-2 bg-white/95 text-neutral-800 hover:bg-neutral-100 border border-neutral-200 rounded-2xl text-xs font-bold flex items-center gap-1.5 shadow-lg transition-colors cursor-pointer"
+          >
+            <Plus className="w-4 h-4 text-blue-600" />
+            <span className="hidden sm:inline">יעד חדש</span>
+          </button>
+
+          {/* Google Sheets Sync Pill */}
+          <button
+            type="button"
+            onClick={() => setIsSyncModalOpen(true)}
+            title="הגדרות סנכרון Google Sheets ו-Make.com"
+            className="px-3 py-2 bg-neutral-900/90 hover:bg-neutral-900 text-white rounded-2xl text-xs font-bold flex items-center gap-1.5 shadow-lg border border-neutral-700 transition-all cursor-pointer"
+          >
+            <span
+              className={`w-2 h-2 rounded-full ${
+                syncStatus.isLive ? 'bg-emerald-400 animate-ping' : 'bg-blue-400'
+              }`}
+            />
+            <span className="text-[11px]">
+              {syncStatus.isLive ? 'Sheets פעיל' : 'מאגר 63'}
+            </span>
+          </button>
+
+          {/* Truck Switcher & Fuel Rate Toolbar */}
           <TruckToolbar
             currentTruck={currentTruck}
             trucks={TRUCKS}
@@ -115,29 +271,43 @@ export default function App() {
         </div>
       </div>
 
-      {/* 3. Floating Client Details Card / Depot Card (Right side on Desktop RTL, Bottom Sheet on Mobile) */}
+      {/* 3. Floating Client Details Card / Depot Card / Route Planner */}
       <div className="absolute top-24 md:top-28 right-4 bottom-6 z-20 pointer-events-none flex flex-col justify-end md:justify-start">
-        {selectedClient && activePricing && (
+        {/* If Route Planner is open, prioritize it */}
+        {isRoutePlannerOpen ? (
+          <RoutePlanner
+            allClients={clients}
+            selectedStops={routeStops}
+            deliveryRound={deliveryRound}
+            truck={currentTruck}
+            fuelRateNis={fuelRateNis}
+            onAddStop={handleAddStopToRoute}
+            onRemoveStop={handleRemoveStopFromRoute}
+            onReorderStops={handleReorderRouteStops}
+            onClearAllStops={handleClearAllRouteStops}
+            onClose={() => setIsRoutePlannerOpen(false)}
+          />
+        ) : selectedClient && activePricing ? (
           <ClientDetailsCard
             client={selectedClient}
             truck={currentTruck}
             pricing={activePricing}
             onClose={handleCloseCard}
             onOpenWhatsAppModal={() => setIsWhatsAppModalOpen(true)}
+            onAddToRoute={handleAddStopToRoute}
+            isInRoute={routeStops.some((s) => s.id === selectedClient.id)}
           />
-        )}
-
-        {isDepotSelected && (
+        ) : isDepotSelected ? (
           <DepotDetailsCard
             depot={DEPOT}
             trucks={TRUCKS}
             onClose={handleCloseCard}
             onFocusDepot={() => {}}
           />
-        )}
+        ) : null}
       </div>
 
-      {/* 4. Bottom-Right Controls (Zoom is already bottom-left in Leaflet) */}
+      {/* 4. Bottom-Left Controls */}
       <div className="absolute bottom-6 left-6 z-30 pointer-events-none">
         <MapControls
           mapLayerType={mapLayerType}
@@ -151,13 +321,33 @@ export default function App() {
         />
       </div>
 
-      {/* 5. WhatsApp Export Modal */}
+      {/* 5. WhatsApp Export & Webhook Modal */}
       {isWhatsAppModalOpen && selectedClient && activePricing && (
         <WhatsAppModal
           client={selectedClient}
           truck={currentTruck}
           pricing={activePricing}
           onClose={() => setIsWhatsAppModalOpen(false)}
+        />
+      )}
+
+      {/* 6. Add Client / Geocoding Modal */}
+      {isAddClientModalOpen && (
+        <AddClientModal
+          onClientAdded={handleClientAdded}
+          onClose={() => setIsAddClientModalOpen(false)}
+        />
+      )}
+
+      {/* 7. Google Sheets & Make.com Sync Settings Modal */}
+      {isSyncModalOpen && (
+        <SyncSettingsModal
+          syncStatus={syncStatus}
+          customScriptUrl={customScriptUrl}
+          onUpdateScriptUrl={handleUpdateScriptUrl}
+          onRefreshFromSheets={handleRefreshSheets}
+          isLoading={isSyncLoading}
+          onClose={() => setIsSyncModalOpen(false)}
         />
       )}
     </div>
