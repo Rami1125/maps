@@ -84,8 +84,8 @@ export const MapControls: React.FC<MapControlsProps> = ({
             בחר סגנון מפה
           </div>
           {[
+            { id: 'standard', label: '🌐 OpenStreetMap (עברית מלאה)' },
             { id: 'voyager', label: '🗺️ Carto Voyager (נקי)' },
-            { id: 'standard', label: '🌐 OpenStreetMap' },
             { id: 'satellite', label: '🛰️ תצ״א לוויין (Esri)' },
             { id: 'dark', label: '🌙 מצב לילה (Dark)' },
           ].map((item) => (

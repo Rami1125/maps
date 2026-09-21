@@ -37,7 +37,25 @@ export default function App() {
   const [currentTruckType, setCurrentTruckType] = useState<TruckType>('crane');
   const [fuelRateNis, setFuelRateNis] = useState<number>(6.5);
   const [activeFilter, setActiveFilter] = useState<string>('all');
-  const [mapLayerType, setMapLayerType] = useState<'standard' | 'voyager' | 'dark' | 'satellite'>('voyager');
+  const [mapLayerType, setMapLayerType] = useState<'standard' | 'voyager' | 'dark' | 'satellite'>(() => {
+    try {
+      const saved = localStorage.getItem('saban_map_layer');
+      if (saved === 'standard' || saved === 'voyager' || saved === 'dark' || saved === 'satellite') {
+        return saved;
+      }
+    } catch {
+      // fallback to standard
+    }
+    return 'standard';
+  });
+
+  useEffect(() => {
+    try {
+      localStorage.setItem('saban_map_layer', mapLayerType);
+    } catch {
+      // ignore
+    }
+  }, [mapLayerType]);
 
   // Modals state
   const [isWhatsAppModalOpen, setIsWhatsAppModalOpen] = useState<boolean>(false);
