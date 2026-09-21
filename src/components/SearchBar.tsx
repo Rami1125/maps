@@ -428,6 +428,10 @@ export const SearchBar: React.FC<SearchBarProps> = ({
       <div
         id="search-filter-chips"
         className="flex items-center gap-1.5 overflow-x-auto pt-2 pb-0.5 px-0.5 no-scrollbar pointer-events-auto"
+        style={{
+          height: '62px',
+          width: '561px',
+        }}
       >
         {filterChips.map((chip) => {
           const isActive = activeFilter === chip.id;

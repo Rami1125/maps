@@ -286,7 +286,21 @@ export default function App() {
         </div>
 
         {/* Left Section in RTL: Action Controls Ribbon */}
-        <div className="w-full md:w-auto overflow-x-auto no-scrollbar py-0.5 flex items-center gap-1.5 pointer-events-auto">
+        <div
+          className="w-full md:w-auto overflow-x-auto no-scrollbar py-0.5 flex items-center gap-1.5 pointer-events-auto"
+          style={{
+            marginLeft: '-300px',
+            marginRight: '-187px',
+            marginBottom: '-8px',
+            marginTop: '-28px',
+            paddingTop: '-2px',
+            paddingLeft: '-5px',
+            paddingRight: '-13px',
+            paddingBottom: '-6px',
+            width: '1074.805px',
+            height: '92px',
+          }}
+        >
           {/* PWA App Install Button */}
           <PWAInstallButton />
 
