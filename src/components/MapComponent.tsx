@@ -201,7 +201,7 @@ export const MapComponent: React.FC<MapComponentProps> = ({
           </span>
         </div>
         <div class="mt-1 bg-slate-900/95 backdrop-blur-md text-amber-300 font-black text-[10px] px-2.5 py-0.5 rounded-full border border-amber-400/60 shadow-lg whitespace-nowrap pointer-events-none">
-          מגרש סבן (בסיס מוצא)
+          מגרש מחסן החרש (בסיס מוצא)
         </div>
       </div>
     `;
@@ -254,83 +254,41 @@ export const MapComponent: React.FC<MapComponentProps> = ({
       // Check if client is part of the multi-stop delivery round
       const routeStop = deliveryRound?.stops.find((s) => s.client.id === client.id);
 
-      let markerHtml = '';
+      // Icon creation using official Google Maps Pin (L.icon)
+      let customIcon: L.Icon | L.DivIcon;
 
       if (routeStop) {
-        // Multi-stop waypoint marker (e.g. Stop #1, #2, #3)
-        markerHtml = `
-          <div class="relative flex flex-col items-center justify-center cursor-pointer transition-all duration-200 select-none ${
-            isSearchActive && !isSearchMatch ? 'opacity-25 pointer-events-none scale-90' : ''
-          }">
-            <div class="absolute -inset-2.5 rounded-full bg-blue-500/40 animate-pulse"></div>
-            <div class="relative w-9 h-9 rounded-2xl bg-gradient-to-tr from-blue-700 to-indigo-600 border-2 border-white text-white shadow-xl flex items-center justify-center text-sm font-black ring-4 ring-blue-300/80 transform scale-110">
-              ${routeStop.stopIndex}
+        // Waypoint marker for multi-stop delivery rounds (Stop #1, #2, etc.)
+        customIcon = L.divIcon({
+          className: 'route-stop-pin',
+          html: `
+            <div class="relative flex flex-col items-center justify-center select-none">
+              <div class="absolute -top-3.5 -right-2 z-20 w-6 h-6 rounded-full bg-blue-600 text-white font-black text-xs border-2 border-white shadow-md flex items-center justify-center ring-2 ring-blue-300">
+                ${routeStop.stopIndex}
+              </div>
+              <img src="/google-maps.png" class="w-[42px] h-[42px] object-contain drop-shadow-md hover:scale-110 active:scale-95 transition-transform" />
             </div>
-            <div class="mt-1 bg-slate-900/95 text-white font-black text-[10px] px-2.5 py-0.5 rounded-full shadow-md border border-blue-400/80 max-w-[125px] truncate text-center pointer-events-none">
-              תחנה #${routeStop.stopIndex}: ${client.name.split('/')[0]}
-            </div>
-          </div>
-        `;
+          `,
+          iconSize: [42, 42],
+          iconAnchor: [21, 42],
+          popupAnchor: [0, -42],
+        });
       } else {
-        const bgGradient = isProblematic
-          ? 'bg-gradient-to-tr from-rose-600 via-rose-500 to-amber-500 border-white/95 shadow-rose-600/30'
-          : 'bg-gradient-to-tr from-emerald-600 via-emerald-500 to-teal-400 border-white/95 shadow-emerald-600/30';
-
-        const iconEmoji = isProblematic ? '⚠️' : '📍';
-        const glowRing = isSelected
-          ? '<div class="absolute -inset-2.5 rounded-full bg-amber-400/70 animate-ping"></div><div class="absolute -inset-1.5 rounded-full bg-amber-400/40 animate-pulse"></div>'
-          : isSearchActive && isSearchMatch
-          ? '<div class="absolute -inset-3 rounded-full bg-sky-400/80 animate-pulse ring-4 ring-sky-300/60"></div>'
-          : '';
-        const ringBorder = isSelected
-          ? 'ring-4 ring-amber-400/90 ring-offset-2 scale-115 shadow-2xl'
-          : isSearchActive && isSearchMatch
-          ? 'ring-4 ring-sky-400/90 ring-offset-2 scale-115 shadow-2xl'
-          : 'hover:scale-110 hover:-translate-y-0.5';
-
-        // Precise GPS Badge on Marker
-        const gpsIndicator = client.hasExactGps
-          ? '<span class="absolute -top-1.5 -right-1.5 w-4 h-4 bg-sky-600 text-white rounded-full flex items-center justify-center text-[9px] border border-white font-black shadow-xs" title="מיקום GPS מדויק 100%">🎯</span>'
-          : '';
-
-        const dragLabel = isSelected
-          ? `<div class="mt-1.5 bg-amber-400 text-neutral-950 font-black text-[10px] px-2.5 py-0.5 rounded-full shadow-lg border border-amber-500/80 flex items-center gap-1 cursor-grab active:cursor-grabbing whitespace-nowrap animate-bounce">
-              <span>🎯 גרור לשער האתר</span>
-            </div>`
-          : isSearchActive && isSearchMatch
-          ? `<div class="mt-1 bg-sky-600 text-white font-black text-[10px] px-2 py-0.5 rounded-full shadow-lg border border-white max-w-[130px] truncate text-center pointer-events-none animate-pulse">
-              ${client.name.split('/')[0]}
-            </div>`
-          : `<div class="mt-1 bg-white/95 backdrop-blur-xs text-slate-800 font-bold text-[10px] px-2 py-0.5 rounded-full shadow-sm border border-slate-200/90 max-w-[115px] truncate text-center pointer-events-none transition-transform">
-              ${client.name.split('/')[0]}
-            </div>`;
-
-        const wrapperStyle = isSearchActive && !isSearchMatch
-          ? 'opacity-25 grayscale-[30%] pointer-events-none scale-90 transition-all duration-300'
-          : isSearchActive && isSearchMatch
-          ? 'scale-110 z-30 transition-all duration-300'
-          : 'transition-all duration-200';
-
-        markerHtml = `
-          <div class="relative flex flex-col items-center justify-center cursor-pointer select-none ${wrapperStyle}">
-            ${glowRing}
-            <div class="relative w-8 h-8 rounded-2xl ${bgGradient} ${ringBorder} text-white shadow-md flex items-center justify-center text-xs font-black border-2 transition-all duration-200">
-              <span class="drop-shadow-xs">${iconEmoji}</span>
-              ${gpsIndicator}
-            </div>
-            ${dragLabel}
-          </div>
-        `;
+        // Standard Google Maps Pin icon as requested by the user
+        customIcon = L.icon({
+          iconUrl: '/google-maps.png',
+          iconSize: [42, 42],
+          iconAnchor: [21, 42],
+          popupAnchor: [0, -42],
+          className: `google-maps-pin ${
+            isSelected ? 'google-maps-pin-selected' : ''
+          } ${
+            isSearchActive && !isSearchMatch ? 'opacity-25 grayscale-[40%]' : ''
+          } hover:scale-110 active:scale-95 transition-transform duration-200 cursor-pointer`,
+        });
       }
 
-      const isDraggable = isSelected && !routeStop;
-
-      const customIcon = L.divIcon({
-        className: 'custom-client-pin',
-        html: markerHtml,
-        iconSize: [42, 54],
-        iconAnchor: [21, 24],
-      });
+      const isDraggable = Boolean(isSelected && !routeStop);
 
       const marker = L.marker([clientLat, clientLng], {
         icon: customIcon,
@@ -351,29 +309,70 @@ export const MapComponent: React.FC<MapComponentProps> = ({
         });
       }
 
-      // Hover tooltip
+      // Elegant floating badge / Tooltip "שער האתר" above the pin
       const gpsSourceText = client.gpsSource === 'sheet_col_p'
         ? '🎯 GPS מדויק 100% מעמודה P'
         : client.gpsSource === 'map_drag'
         ? '📍 נ.צ עודכן ידנית במפה'
         : client.hasExactGps
         ? '🎯 נ.צ מדויק'
-        : '📍 מיקום משוער (ניתן לגרור לשער)';
+        : '📍 מיקום משוער (גרור לשער)';
 
-      marker.bindTooltip(`
-        <div class="p-1.5 text-right dir-rtl font-['Assistant']">
-          <div class="font-bold text-xs text-neutral-900">${client.name}</div>
-          <div class="text-[11px] text-neutral-600">${client.address}, ${client.city}</div>
-          ${routeStop ? `<div class="mt-1 text-[10px] font-extrabold text-blue-600">🎯 תחנה #${routeStop.stopIndex} בסבב (LIFO העמסה #${routeStop.loadingOrder})</div>` : ''}
-          <div class="mt-0.5 text-[10px] font-bold ${isProblematic ? 'text-rose-600' : 'text-emerald-600'}">
-            ${isProblematic ? '⚠️ אתר בעייתי (+10% סיכון)' : '🟢 אתר תקין (שוטף)'}
+      const gateTooltipHtml = `
+        <div class="px-2.5 py-1 text-right dir-rtl font-['Assistant'] select-none">
+          <div class="flex items-center gap-1 font-bold text-xs ${isSelected ? 'text-amber-300' : 'text-slate-900'} whitespace-nowrap">
+            <span class="text-sky-500">🎯 שער האתר:</span>
+            <span>${client.name.split('/')[0]}</span>
           </div>
-          <div class="mt-1 text-[10px] font-mono font-bold text-blue-800 bg-blue-50 px-1.5 py-0.5 rounded border border-blue-200 inline-block">
+          <div class="text-[10px] ${isSelected ? 'text-slate-300' : 'text-slate-500'} truncate max-w-[150px]">
+            ${client.address || client.city}
+          </div>
+          ${
+            isSelected
+              ? '<div class="text-[9px] text-amber-300 font-bold mt-0.5 animate-pulse">💡 גרור סיכה זו לשער הפריקה המדויק</div>'
+              : ''
+          }
+        </div>
+      `;
+
+      marker.bindTooltip(gateTooltipHtml, {
+        direction: 'top',
+        offset: [0, -42],
+        permanent: isSelected, // Permanently visible floating tag above selected pin
+        className: isSelected ? 'leaflet-tooltip-selected-gate' : 'leaflet-tooltip-clean',
+        opacity: 0.98,
+      });
+
+      // Readable popup opened directly above the head of the pin
+      const popupHtml = `
+        <div class="p-2 text-right dir-rtl font-['Assistant'] max-w-[210px]">
+          <div class="flex items-center justify-between pb-1.5 border-b border-slate-100">
+            <div class="flex items-center gap-1">
+              <img src="/google-maps.png" class="w-4 h-4 object-contain" />
+              <span class="font-extrabold text-xs text-slate-900">שער האתר</span>
+            </div>
+            <span class="text-[9px] px-1.5 py-0.2 rounded font-mono font-bold ${isProblematic ? 'bg-rose-50 text-rose-700' : 'bg-emerald-50 text-emerald-700'}">
+              ${isProblematic ? 'חריג +10%' : 'תקין'}
+            </span>
+          </div>
+          <div class="mt-1.5 font-bold text-xs text-slate-900">${client.name}</div>
+          <div class="text-[11px] text-slate-500">${client.address}, ${client.city}</div>
+          <div class="mt-1 text-[10px] font-mono text-slate-600 bg-slate-50 px-1.5 py-0.5 rounded border border-slate-200 inline-block">
             ${gpsSourceText}: ${clientLat.toFixed(6)}, ${clientLng.toFixed(6)}
           </div>
-          ${isSelected ? '<div class="text-[9px] text-amber-700 font-bold mt-0.5">💡 גרור סיכה זו במפה לשער המדויק</div>' : ''}
+          ${
+            isSelected
+              ? '<div class="mt-1 text-[9px] text-amber-700 font-bold">💡 גרור את סיכת Google Maps לשער האתר</div>'
+              : ''
+          }
         </div>
-      `, { direction: 'top', offset: [0, -15], opacity: 0.95 });
+      `;
+
+      marker.bindPopup(popupHtml, {
+        offset: [0, -42],
+        closeButton: true,
+        className: 'gate-custom-popup',
+      });
 
       markersRef.current[client.id] = marker;
     });
