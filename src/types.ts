@@ -30,6 +30,11 @@ export interface ClientSite {
   hasExactGps?: boolean;
   gpsCoordinates?: string;
   gpsSource?: 'sheet_col_p' | 'map_drag' | 'geocoded' | 'estimated';
+  // Columns I, J, L, P Cross-Validation Fields
+  verificationStamp?: string; // עמודה L: חותמת אימות רב-חודשית (הצלבת נתוני שטח עלי + חכמת)
+  ituranCraneAvgMinutes?: number; // עמודה I: כיול זמן פריקת מנוף PTO על פי ממוצעי אמת אוג׳-ספט׳
+  ituranFlatbedAvgMinutes?: number; // עמודה J: הזרקת זמן פריקה בפועל איסוזו עלי מדוחות איתוראן
+  crossValidationNote?: string; // פירוט הצלבת השטח בין שני הנהגים ושתי המשאיות
 }
 
 export type TruckType = 'crane' | 'flatbed';

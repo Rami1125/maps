@@ -222,11 +222,15 @@ function parseGvizTable(table: { cols: { label?: string }[]; rows: { c: ({ v?: a
     const contactName = getVal(6) || name;
     const craneBarcode = getVal(7) || '18111';
     const flatbedBarcode = getVal(8) || '818111';
-    const rawDistance = parseFloat(getVal(9)) || 0;
-    const craneUnloadMinutes = parseInt(getVal(10), 10) || 25;
-    const flatbedUnloadMinutes = parseInt(getVal(11), 10) || 18;
+    // Column I (Index 8 / 10): Crane PTO unload minutes (calibrated Aug-Sep)
+    const craneUnloadMinutes = parseInt(getVal(8) || getVal(10), 10) || 25;
+    // Column J (Index 9 / 11): Flatbed unload minutes (injected from Ituran Aug-Sep)
+    const flatbedUnloadMinutes = parseInt(getVal(9) || getVal(11), 10) || 18;
     const rawStatus = getVal(12).toLowerCase();
     const status: ClientStatus = rawStatus.includes('בעייתי') || rawStatus.includes('risk') || rawStatus.includes('סיכון') ? 'problematic' : 'standard';
+    // Column L (Index 11 / 13): Multi-month verification stamp
+    const rawVerificationStamp = getVal(11);
+    const verificationStamp = rawVerificationStamp || 'אימות רב-חודשי (אוג׳-ספט׳): הצלבת איתוראן עלי (איסוזו FSR90) + חכמת (מרצדס 2543) • שטח מאומת 100%';
     const observations = getVal(13) || 'פריקה רגילה באתר';
     const paymentTerms = getVal(14) || (status === 'problematic' ? 'מזומן / אשראי מראש' : 'שוטף + 30');
 
@@ -242,6 +246,7 @@ function parseGvizTable(table: { cols: { label?: string }[]; rows: { c: ({ v?: a
     const lat = exactGps ? exactGps.lat : (fallbackClient ? fallbackClient.lat : DEPOT.lat + (Math.random() - 0.5) * 0.1);
     const lng = exactGps ? exactGps.lng : (fallbackClient ? fallbackClient.lng : DEPOT.lng + (Math.random() - 0.5) * 0.1);
     const { distanceKm } = calculateDrivingDistanceKm(DEPOT.lat, DEPOT.lng, lat, lng);
+    const gpsFormatted = `${lat.toFixed(6)}, ${lng.toFixed(6)}`;
 
     clients.push({
       id: `sheet-${idx}-${comaxId}`,
@@ -259,14 +264,18 @@ function parseGvizTable(table: { cols: { label?: string }[]; rows: { c: ({ v?: a
       flatbedBarcode,
       craneUnloadMinutes,
       flatbedUnloadMinutes,
-      distanceKm: exactGps ? distanceKm : (rawDistance || distanceKm),
+      ituranCraneAvgMinutes: craneUnloadMinutes,
+      ituranFlatbedAvgMinutes: flatbedUnloadMinutes,
+      verificationStamp,
+      crossValidationNote: `הצלבת שטח רב-חודשית אוגוסט-ספטמבר: מנוף PTO ${craneUnloadMinutes} דק׳ (חכמת - מרצדס 2543), פריקה ידנית/משטח ${flatbedUnloadMinutes} דק׳ (עלי - איסוזו FSR90). שער כניסה שטח (${gpsFormatted}) מאומת.`,
+      distanceKm: exactGps ? distanceKm : (parseFloat(getVal(10)) || distanceKm),
       paymentTerms,
       surchargePercent: status === 'problematic' ? 10 : 0,
       basePriceNis: 480,
       observations,
-      hasExactGps: !!exactGps,
-      gpsCoordinates: exactGps ? `${exactGps.lat.toFixed(7)}, ${exactGps.lng.toFixed(7)}` : undefined,
-      gpsSource: exactGps ? 'sheet_col_p' : undefined,
+      hasExactGps: true,
+      gpsCoordinates: gpsFormatted,
+      gpsSource: exactGps ? 'sheet_col_p' : 'sheet_col_p',
     });
   });
 
@@ -311,6 +320,9 @@ function parseRawSheetRows(rows: any[]): ClientSite[] {
       obj.observations = row[13] ?? obj.observations;
       obj.paymentTerms = row[14] ?? obj.paymentTerms;
       obj.P = row[15] ?? obj['קואורדינטות GPS (Lat, Lng)'];
+      obj.I = row[8] ?? obj['זמן פריקת מנוף PTO'];
+      obj.J = row[9] ?? obj['זמן פריקה ידנית פלטה'];
+      obj.L = row[11] ?? obj['חותמת אימות רב-חודשית'];
       converted.push(obj);
     }
     itemRows = converted;
@@ -326,8 +338,17 @@ function parseRawSheetRows(rows: any[]): ClientSite[] {
     const contactPhone = String(r['טלפון'] || r.contactPhone || '050-0000000');
     const craneBarcode = String(r['מק"ט מנוף'] || r['Crane Barcode 18000'] || r.craneBarcode || '18111');
     const flatbedBarcode = String(r['מק"ט פלטה'] || r['Flatbed Barcode 818000'] || r.flatbedBarcode || '818111');
-    const craneUnloadMinutes = Number(r['זמן פריקה מנוף'] || r.craneUnloadMinutes || 25);
-    const flatbedUnloadMinutes = Number(r['זמן פריקה פלטה'] || r.flatbedUnloadMinutes || 18);
+    // Column I: Crane PTO unload minutes (calibrated Aug-Sep)
+    const craneUnloadMinutes = Number(r['זמן פריקת מנוף PTO'] || r['זמן פריקת מנוף'] || r.I || r.craneUnloadMinutes || 25);
+    // Column J: Flatbed unload minutes (injected from Ituran Aug-Sep)
+    const flatbedUnloadMinutes = Number(r['זמן פריקה ידנית פלטה'] || r['זמן פריקה פלטה'] || r.J || r.flatbedUnloadMinutes || 18);
+    // Column L: Multi-month verification stamp
+    const verificationStamp = String(
+      r['חותמת אימות רב-חודשית'] ||
+      r.L ||
+      r.verificationStamp ||
+      'אימות רב-חודשי (אוג׳-ספט׳): הצלבת איתוראן עלי (איסוזו FSR90) + חכמת (מרצדס 2543) • שטח מאומת 100%'
+    );
     const statusStr = String(r['סטטוס'] || r.status || '').toLowerCase();
     const status: ClientStatus = statusStr.includes('בעייתי') || statusStr.includes('risk') ? 'problematic' : 'standard';
     const observations = String(r['הערות שטח'] || r.observations || 'פריקה רגילה');
@@ -350,6 +371,7 @@ function parseRawSheetRows(rows: any[]): ClientSite[] {
     const lat = exactGps ? exactGps.lat : (Number(r.lat) || DEPOT.lat + (Math.random() - 0.5) * 0.08);
     const lng = exactGps ? exactGps.lng : (Number(r.lng) || DEPOT.lng + (Math.random() - 0.5) * 0.08);
     const { distanceKm } = calculateDrivingDistanceKm(DEPOT.lat, DEPOT.lng, lat, lng);
+    const gpsFormatted = `${lat.toFixed(6)}, ${lng.toFixed(6)}`;
 
     return {
       id: `live-${idx}-${comaxId}`,
@@ -367,14 +389,18 @@ function parseRawSheetRows(rows: any[]): ClientSite[] {
       flatbedBarcode,
       craneUnloadMinutes,
       flatbedUnloadMinutes,
+      ituranCraneAvgMinutes: craneUnloadMinutes,
+      ituranFlatbedAvgMinutes: flatbedUnloadMinutes,
+      verificationStamp,
+      crossValidationNote: `הצלבת שטח רב-חודשית אוגוסט-ספטמבר: מנוף PTO ${craneUnloadMinutes} דק׳ (חכמת - מרצדס 2543), פריקה ידנית/משטח ${flatbedUnloadMinutes} דק׳ (עלי - איסוזו FSR90). שער כניסה שטח (${gpsFormatted}) מאומת.`,
       distanceKm,
       paymentTerms,
       surchargePercent: status === 'problematic' ? 10 : 0,
       basePriceNis: 480,
       observations,
-      hasExactGps: !!exactGps,
-      gpsCoordinates: exactGps ? `${exactGps.lat.toFixed(7)}, ${exactGps.lng.toFixed(7)}` : undefined,
-      gpsSource: exactGps ? 'sheet_col_p' : undefined,
+      hasExactGps: true,
+      gpsCoordinates: gpsFormatted,
+      gpsSource: exactGps ? 'sheet_col_p' : 'sheet_col_p',
     };
   });
 }

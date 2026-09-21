@@ -229,10 +229,23 @@ export const RoutePlanner: React.FC<RoutePlannerProps> = ({
             <strong className="text-emerald-400 font-black text-sm">{timeEstimation.totalRoundFormatted}</strong>
           </div>
           <div className="flex items-center gap-2 text-[11px]">
+            <button
+              type="button"
+              onClick={() => {
+                const playBtn =
+                  document.getElementById('playback-play-pause-btn') ||
+                  document.getElementById('reopen-playback-btn');
+                if (playBtn) playBtn.click();
+              }}
+              className="bg-amber-400 hover:bg-amber-300 text-neutral-950 font-black px-2.5 py-0.5 rounded-lg flex items-center gap-1 transition-transform hover:scale-105 cursor-pointer shadow-sm"
+              title="הפעל או פתח סימולציית נסיעה חיה על גבי המפה"
+            >
+              <span>🚛 סימולציה במפה ▶</span>
+            </button>
             <span className="bg-neutral-800 px-2 py-0.5 rounded text-neutral-200 font-bold border border-neutral-700">
               {timeEstimation.departureTime} ⟵ {timeEstimation.estimatedReturnTime}
             </span>
-            <span className="bg-blue-900/80 text-blue-300 px-2 py-0.5 rounded font-bold border border-blue-700/60">
+            <span className="bg-blue-900/80 text-blue-300 px-2 py-0.5 rounded font-bold border border-blue-700/60 hidden sm:inline">
               {timeEstimation.transitSpeedKmH} קמ"ש
             </span>
           </div>

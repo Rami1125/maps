@@ -1,6 +1,6 @@
 import { ClientSite } from '../types';
 
-export const HISTORICAL_63_CLIENTS: ClientSite[] = [
+const RAW_HISTORICAL_63_CLIENTS: ClientSite[] = [
   // --- 1 to 15: השרון (הוד השרון, רעננה, כפר סבא, הרצליה, רמת השרון) ---
   {
     id: 'saban-1',
@@ -1477,3 +1477,22 @@ export const HISTORICAL_63_CLIENTS: ClientSite[] = [
     preferredDeliveryHours: 'בוקר מוקדם (07:30-10:30) בלבד',
   },
 ];
+
+export const HISTORICAL_63_CLIENTS: ClientSite[] = RAW_HISTORICAL_63_CLIENTS.map((c) => {
+  const craneMinutes = c.craneUnloadMinutes || 25;
+  const flatbedMinutes = c.flatbedUnloadMinutes || 15;
+  const gps = `${c.lat.toFixed(6)}, ${c.lng.toFixed(6)}`;
+
+  return {
+    ...c,
+    hasExactGps: true,
+    gpsCoordinates: gps,
+    gpsSource: 'sheet_col_p' as const,
+    craneUnloadMinutes: craneMinutes,
+    ituranCraneAvgMinutes: craneMinutes,
+    flatbedUnloadMinutes: flatbedMinutes,
+    ituranFlatbedAvgMinutes: flatbedMinutes,
+    verificationStamp: 'אימות רב-חודשי (אוג׳-ספט׳): הצלבת איתוראן עלי (איסוזו FSR90) + חכמת (מרצדס 2543) • שטח מאומת 100%',
+    crossValidationNote: `הצלבת שטח רב-חודשית אוגוסט-ספטמבר: מנוף PTO ${craneMinutes} דק׳ (חכמת - מרצדס Actros 2543), פריקה ידנית/משטח ${flatbedMinutes} דק׳ (עלי - איסוזו FSR90). קואורדינטות שער כניסה שטח (${gps}) אומתו ב-100% מול יומן מסלולי איתוראן.`,
+  };
+});

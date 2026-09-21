@@ -14,6 +14,7 @@ import { MapControls } from './components/MapControls';
 import { RoutePlanner } from './components/RoutePlanner';
 import { AddClientModal } from './components/AddClientModal';
 import { SyncSettingsModal } from './components/SyncSettingsModal';
+import { UnifiedAuditModal } from './components/UnifiedAuditModal';
 import {
   Building2,
   Sparkles,
@@ -24,6 +25,7 @@ import {
   Plus,
   FileSpreadsheet,
   CheckCircle2,
+  Scale,
 } from 'lucide-react';
 
 export default function App() {
@@ -42,6 +44,8 @@ export default function App() {
   const [isAddClientModalOpen, setIsAddClientModalOpen] = useState<boolean>(false);
   const [isSyncModalOpen, setIsSyncModalOpen] = useState<boolean>(false);
   const [isRoutePlannerOpen, setIsRoutePlannerOpen] = useState<boolean>(false);
+  const [isUnifiedAuditOpen, setIsUnifiedAuditOpen] = useState<boolean>(false);
+  const [auditInitialTab, setAuditInitialTab] = useState<'matrix' | 'trends' | 'delivery_note' | 'methodology'>('matrix');
 
   // Multi-Stop Route Planner state (2-5 stops)
   const [routeStops, setRouteStops] = useState<ClientSite[]>([]);
@@ -239,6 +243,23 @@ export default function App() {
 
         {/* Left Section in RTL: Action Controls, Truck Switcher & Sync Status */}
         <div className="flex flex-wrap items-center gap-2 pointer-events-auto">
+          {/* Unified System - Orders, Delivery Notes & Cross-Validation */}
+          <button
+            type="button"
+            onClick={() => {
+              setAuditInitialTab('matrix');
+              setIsUnifiedAuditOpen(true);
+            }}
+            title="מערכת מאוחדת - הזמנות, תעודות משלוח והצלבה (דוחות איתוראן אוג׳-ספט׳)"
+            className="px-3.5 py-2 bg-gradient-to-r from-amber-400 via-orange-400 to-amber-500 hover:from-amber-500 hover:to-orange-500 text-neutral-950 font-black rounded-2xl text-xs flex items-center gap-2 shadow-lg border border-amber-300 transition-all cursor-pointer hover:scale-105 active:scale-95"
+          >
+            <span className="text-sm">⚖️</span>
+            <span>מערכת מאוחדת והצלבה</span>
+            <span className="bg-neutral-950 text-amber-300 text-[10px] font-mono px-2 py-0.5 rounded-full font-bold">
+              עמודות I, J, L, P
+            </span>
+          </button>
+
           {/* Multi-Stop Route Planner Toggle Button */}
           <button
             type="button"
@@ -331,6 +352,11 @@ export default function App() {
             onOpenWhatsAppModal={() => setIsWhatsAppModalOpen(true)}
             onAddToRoute={handleAddStopToRoute}
             isInRoute={routeStops.some((s) => s.id === selectedClient.id)}
+            onOpenTrends={(c) => {
+              setSelectedClient(c);
+              setAuditInitialTab('trends');
+              setIsUnifiedAuditOpen(true);
+            }}
           />
         ) : isDepotSelected ? (
           <DepotDetailsCard
@@ -385,6 +411,20 @@ export default function App() {
           onClose={() => setIsSyncModalOpen(false)}
         />
       )}
+
+      {/* 8. Unified System - Orders, Delivery Notes & Cross-Validation Modal */}
+      <UnifiedAuditModal
+        isOpen={isUnifiedAuditOpen}
+        onClose={() => setIsUnifiedAuditOpen(false)}
+        clients={clients}
+        onSelectClient={handleSelectClient}
+        initialClientId={selectedClient?.id}
+        initialTab={auditInitialTab}
+        onAddToRoute={(client) => {
+          handleAddStopToRoute(client);
+          setIsRoutePlannerOpen(true);
+        }}
+      />
     </div>
   );
 }

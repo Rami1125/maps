@@ -25,6 +25,11 @@
   border: none;
 }
 
+.custom-playback-truck {
+  background: transparent;
+  border: none;
+}
+
 /* Pulse animation for pins */
 @keyframes pulse-ring {
   0% {

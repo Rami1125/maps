@@ -38,6 +38,7 @@ interface ClientDetailsCardProps {
   onOpenWhatsAppModal: () => void;
   onAddToRoute?: (client: ClientSite) => void;
   isInRoute?: boolean;
+  onOpenTrends?: (client: ClientSite) => void;
 }
 
 export const ClientDetailsCard: React.FC<ClientDetailsCardProps> = ({
@@ -48,6 +49,7 @@ export const ClientDetailsCard: React.FC<ClientDetailsCardProps> = ({
   onOpenWhatsAppModal,
   onAddToRoute,
   isInRoute = false,
+  onOpenTrends,
 }) => {
   const [showCostBreakdown, setShowCostBreakdown] = useState(true);
   const [copiedQuick, setCopiedQuick] = useState(false);
@@ -301,6 +303,97 @@ export const ClientDetailsCard: React.FC<ClientDetailsCardProps> = ({
               <p className="text-[11px] text-rose-800 mt-1 font-medium leading-relaxed">
                 {client.riskDetails}
               </p>
+            )}
+          </div>
+        </div>
+
+        {/* Unified Cross-Validation Section (Columns I, J, L, P) */}
+        <div className="p-3.5 bg-gradient-to-br from-amber-50/90 via-orange-50/40 to-neutral-50 rounded-2xl border border-amber-200/90 shadow-2xs space-y-2.5">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-1.5 font-black text-xs text-amber-950">
+              <span className="text-sm">⚖️</span>
+              <span>הצלבת נתוני שטח וכיול רב-חודשי (אוג׳-ספט׳)</span>
+            </div>
+            <span className="text-[10px] bg-amber-200 text-amber-950 font-black px-2 py-0.5 rounded-full border border-amber-300">
+              איתוראן מאומת
+            </span>
+          </div>
+
+          {/* Drivers & Unload Times Comparison: Column I & Column J */}
+          <div className="grid grid-cols-2 gap-2 text-xs">
+            {/* Column I: Crane PTO (Mercedes - Hikmat) */}
+            <div className={`p-2.5 rounded-xl border transition-all ${
+              truck.id === 'crane'
+                ? 'bg-blue-50/90 border-blue-300 ring-2 ring-blue-400/50'
+                : 'bg-white border-neutral-200'
+            }`}>
+              <div className="flex items-center justify-between text-[10px] font-bold text-neutral-500">
+                <span>עמודה I • מנוף PTO</span>
+                <span className="bg-blue-100 text-blue-900 px-1.5 rounded font-mono font-bold">18111</span>
+              </div>
+              <div className="font-extrabold text-xs text-neutral-900 mt-0.5">
+                חכמת (מרצדס 12T)
+              </div>
+              <div className="mt-1 flex items-baseline gap-1">
+                <span className="text-lg font-black text-blue-700">
+                  {client.ituranCraneAvgMinutes || client.craneUnloadMinutes}
+                </span>
+                <span className="text-[11px] text-neutral-600 font-semibold">דקות פריקה</span>
+              </div>
+              <div className="text-[10px] text-neutral-500 mt-0.5">
+                כיול ממוצע אמת אוג׳-ספט׳
+              </div>
+            </div>
+
+            {/* Column J: Flatbed Manual (Isuzu - Ali) */}
+            <div className={`p-2.5 rounded-xl border transition-all ${
+              truck.id === 'flatbed'
+                ? 'bg-amber-50/90 border-amber-300 ring-2 ring-amber-400/50'
+                : 'bg-white border-neutral-200'
+            }`}>
+              <div className="flex items-center justify-between text-[10px] font-bold text-neutral-500">
+                <span>עמודה J • פריקה ידנית</span>
+                <span className="bg-amber-100 text-amber-900 px-1.5 rounded font-mono font-bold">818111</span>
+              </div>
+              <div className="font-extrabold text-xs text-neutral-900 mt-0.5">
+                עלי (איסוזו 5.5T)
+              </div>
+              <div className="mt-1 flex items-baseline gap-1">
+                <span className="text-lg font-black text-amber-700">
+                  {client.ituranFlatbedAvgMinutes || client.flatbedUnloadMinutes}
+                </span>
+                <span className="text-[11px] text-neutral-600 font-semibold">דקות פריקה</span>
+              </div>
+              <div className="text-[10px] text-neutral-500 mt-0.5">
+                זמן בפועל מדוחות איתוראן
+              </div>
+            </div>
+          </div>
+
+          {/* Column L: Multi-month verification stamp */}
+          <div className="p-2.5 bg-white/95 rounded-xl border border-amber-200 text-xs space-y-1">
+            <div className="flex items-center gap-1.5 text-[11px] font-black text-neutral-800">
+              <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 flex-shrink-0" />
+              <span>עמודה L: חותמת אימות רב-חודשית</span>
+            </div>
+            <div className="text-[11px] font-bold text-emerald-800 bg-emerald-50 px-2 py-1 rounded-lg border border-emerald-200">
+              {client.verificationStamp || 'אימות רב-חודשי (אוג׳-ספט׳): הצלבת איתוראן עלי (איסוזו FSR90) + חכמת (מרצדס 2543) • שטח מאומת 100%'}
+            </div>
+            {client.crossValidationNote && (
+              <p className="text-[10px] text-neutral-600 leading-relaxed pt-0.5">
+                {client.crossValidationNote}
+              </p>
+            )}
+
+            {onOpenTrends && (
+              <button
+                type="button"
+                onClick={() => onOpenTrends(client)}
+                className="w-full mt-2 py-1.5 px-3 bg-amber-200/90 hover:bg-amber-300 text-amber-950 font-black rounded-xl text-xs flex items-center justify-center gap-1.5 transition-all shadow-2xs cursor-pointer border border-amber-300"
+              >
+                <span>📈</span>
+                <span>גרף מגמת זמני פריקה בפועל (אוג׳-ספט׳)</span>
+              </button>
             )}
           </div>
         </div>

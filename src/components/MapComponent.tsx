@@ -1,6 +1,14 @@
-import React, { useEffect, useRef } from 'react';
+import React, { useEffect, useRef, useState, useMemo, useCallback } from 'react';
 import L from 'leaflet';
 import { ClientSite, DepotInfo, DeliveryRound } from '../types';
+import {
+  buildRouteCircuitData,
+  interpolateTruckState,
+  RouteCircuitData,
+  InterpolatedTruckState,
+} from '../utils/routePlayback';
+import { RoutePlaybackControl } from './RoutePlaybackControl';
+import { Truck } from 'lucide-react';
 
 interface MapComponentProps {
   depot: DepotInfo;
@@ -38,6 +46,55 @@ export const MapComponent: React.FC<MapComponentProps> = ({
   const routePolylineRef = useRef<L.Polyline | null>(null);
   const multiStopPolylineRef = useRef<L.Polyline | null>(null);
   const tileLayerRef = useRef<L.TileLayer | null>(null);
+
+  // --- Route Playback State & Refs ---
+  const [isPlaying, setIsPlaying] = useState<boolean>(false);
+  const [progress, setProgress] = useState<number>(0);
+  const [playbackSpeed, setPlaybackSpeed] = useState<number>(1);
+  const [followCamera, setFollowCamera] = useState<boolean>(false);
+  const [isPlaybackPanelVisible, setIsPlaybackPanelVisible] = useState<boolean>(true);
+
+  const progressRef = useRef<number>(0);
+  const playbackSpeedRef = useRef<number>(1);
+  const animationFrameRef = useRef<number | null>(null);
+  const lastTimeRef = useRef<number | null>(null);
+
+  const playbackTruckMarkerRef = useRef<L.Marker | null>(null);
+  const traveledPolylineRef = useRef<L.Polyline | null>(null);
+
+  // Sync refs with state for animation loop
+  useEffect(() => {
+    playbackSpeedRef.current = playbackSpeed;
+  }, [playbackSpeed]);
+
+  useEffect(() => {
+    progressRef.current = progress;
+  }, [progress]);
+
+  // Compute circuit data whenever deliveryRound changes
+  const circuit: RouteCircuitData | null = useMemo(() => {
+    if (!deliveryRound || deliveryRound.stops.length === 0) return null;
+    return buildRouteCircuitData(depot, deliveryRound);
+  }, [depot, deliveryRound]);
+
+  // Interpolate current truck location and segment
+  const truckState: InterpolatedTruckState | null = useMemo(() => {
+    if (!circuit) return null;
+    return interpolateTruckState(circuit, progress);
+  }, [circuit, progress]);
+
+  // Reset playback if deliveryRound is cleared or changed
+  useEffect(() => {
+    if (!deliveryRound || deliveryRound.stops.length === 0) {
+      setIsPlaying(false);
+      setProgress(0);
+      progressRef.current = 0;
+      if (animationFrameRef.current) {
+        cancelAnimationFrame(animationFrameRef.current);
+        animationFrameRef.current = null;
+      }
+    }
+  }, [deliveryRound]);
 
   // Initialize Map
   useEffect(() => {
@@ -272,7 +329,196 @@ export const MapComponent: React.FC<MapComponentProps> = ({
     });
   }, [clients, selectedClient, deliveryRound, onSelectClient, onUpdateClientCoordinates]);
 
-  // Multi-Stop Circuit Polyline when in Route Planner mode
+  // Animation Loop (60fps requestAnimationFrame)
+  useEffect(() => {
+    if (!isPlaying || !circuit) {
+      if (animationFrameRef.current) {
+        cancelAnimationFrame(animationFrameRef.current);
+        animationFrameRef.current = null;
+      }
+      lastTimeRef.current = null;
+      return;
+    }
+
+    // Base total time at 1x is 28 seconds
+    const BASE_DURATION_MS = 28000;
+
+    const step = (timestamp: number) => {
+      if (!lastTimeRef.current) {
+        lastTimeRef.current = timestamp;
+      }
+      const deltaMs = timestamp - lastTimeRef.current;
+      lastTimeRef.current = timestamp;
+
+      const progressIncrement =
+        (deltaMs / BASE_DURATION_MS) * playbackSpeedRef.current;
+      const nextProg = Math.min(1, progressRef.current + progressIncrement);
+      progressRef.current = nextProg;
+      setProgress(nextProg);
+
+      if (nextProg >= 1) {
+        setIsPlaying(false);
+        lastTimeRef.current = null;
+        return;
+      }
+
+      animationFrameRef.current = requestAnimationFrame(step);
+    };
+
+    lastTimeRef.current = null;
+    animationFrameRef.current = requestAnimationFrame(step);
+
+    return () => {
+      if (animationFrameRef.current) {
+        cancelAnimationFrame(animationFrameRef.current);
+        animationFrameRef.current = null;
+      }
+      lastTimeRef.current = null;
+    };
+  }, [isPlaying, circuit]);
+
+  // Playback Control Handlers
+  const handleTogglePlay = useCallback(() => {
+    setIsPlaying((prev) => {
+      if (!prev && progressRef.current >= 0.995) {
+        progressRef.current = 0;
+        setProgress(0);
+      }
+      return !prev;
+    });
+  }, []);
+
+  const handleReset = useCallback(() => {
+    setIsPlaying(false);
+    progressRef.current = 0;
+    setProgress(0);
+  }, []);
+
+  const handleSeek = useCallback((newProgress: number) => {
+    const clamped = Math.max(0, Math.min(1, newProgress));
+    progressRef.current = clamped;
+    setProgress(clamped);
+  }, []);
+
+  const handleJumpToWaypoint = useCallback(
+    (wpIndex: number) => {
+      if (!circuit) return;
+      if (wpIndex <= 0) {
+        handleSeek(0);
+        return;
+      }
+      if (wpIndex >= circuit.waypoints.length - 1) {
+        handleSeek(1);
+        return;
+      }
+      // Target distance to start of segment wpIndex
+      const targetDist = circuit.segments
+        .slice(0, wpIndex)
+        .reduce((acc, seg) => acc + seg.distanceKm, 0);
+      const targetProgress =
+        circuit.totalDistanceKm > 0 ? targetDist / circuit.totalDistanceKm : 0;
+      handleSeek(targetProgress);
+    },
+    [circuit, handleSeek]
+  );
+
+  // Synchronize Moving Truck Marker & Traveled Polyline
+  useEffect(() => {
+    const map = mapInstanceRef.current;
+    if (!map) return;
+
+    if (!circuit || !truckState || !deliveryRound || deliveryRound.stops.length === 0) {
+      if (playbackTruckMarkerRef.current) {
+        map.removeLayer(playbackTruckMarkerRef.current);
+        playbackTruckMarkerRef.current = null;
+      }
+      if (traveledPolylineRef.current) {
+        map.removeLayer(traveledPolylineRef.current);
+        traveledPolylineRef.current = null;
+      }
+      return;
+    }
+
+    // 1. Update or create Traveled Path Polyline (Emerald glow trail)
+    if (!traveledPolylineRef.current) {
+      const traveledPolyline = L.polyline(truckState.traveledCoords, {
+        color: '#10b981', // Emerald-500
+        weight: 6,
+        opacity: 0.95,
+        lineCap: 'round',
+        lineJoin: 'round',
+      }).addTo(map);
+      traveledPolylineRef.current = traveledPolyline;
+    } else {
+      traveledPolylineRef.current.setLatLngs(truckState.traveledCoords);
+    }
+
+    // 2. Animated Truck DivIcon with directional heading arrow & radar glow
+    const truckIconHtml = `
+      <div class="relative flex flex-col items-center justify-center cursor-pointer select-none pointer-events-none">
+        <!-- Radar Pulse Glow -->
+        <div class="absolute w-12 h-12 rounded-full bg-amber-400/40 animate-ping"></div>
+        <div class="absolute w-9 h-9 rounded-full bg-blue-500/30 pulse-effect"></div>
+
+        <!-- Direction Heading Arrow -->
+        <div style="transform: rotate(${truckState.bearingDeg}deg) translateY(-20px);" class="absolute text-amber-400 text-xs font-black drop-shadow-md transition-transform duration-75">
+          ▲
+        </div>
+
+        <!-- Truck Core Badge -->
+        <div class="relative w-10 h-10 rounded-2xl bg-neutral-950 border-2 border-amber-400 shadow-2xl flex items-center justify-center text-lg text-white font-black ring-4 ring-neutral-900/60 transform hover:scale-110 transition-transform">
+          🚛
+        </div>
+
+        <!-- Floating Status Label -->
+        <div class="mt-1 bg-neutral-950/95 backdrop-blur-md text-amber-300 font-extrabold text-[10px] px-2 py-0.5 rounded-full shadow-xl border border-amber-400/80 whitespace-nowrap max-w-[140px] truncate text-center pointer-events-none">
+          ${truckState.statusHeadline}
+        </div>
+      </div>
+    `;
+
+    const truckIcon = L.divIcon({
+      className: 'custom-playback-truck',
+      html: truckIconHtml,
+      iconSize: [44, 60],
+      iconAnchor: [22, 28],
+    });
+
+    if (!playbackTruckMarkerRef.current) {
+      const marker = L.marker([truckState.lat, truckState.lng], {
+        icon: truckIcon,
+        zIndexOffset: 2000,
+      }).addTo(map);
+      playbackTruckMarkerRef.current = marker;
+    } else {
+      playbackTruckMarkerRef.current.setLatLng([truckState.lat, truckState.lng]);
+      playbackTruckMarkerRef.current.setIcon(truckIcon);
+    }
+
+    // 3. Follow Camera (Auto-Center on truck)
+    if (followCamera && isPlaying) {
+      map.panTo([truckState.lat, truckState.lng], { animate: true, duration: 0.25 });
+    }
+  }, [circuit, truckState, deliveryRound, followCamera, isPlaying]);
+
+  // Clean up playback markers on unmount
+  useEffect(() => {
+    return () => {
+      const map = mapInstanceRef.current;
+      if (map) {
+        if (playbackTruckMarkerRef.current) {
+          map.removeLayer(playbackTruckMarkerRef.current);
+          playbackTruckMarkerRef.current = null;
+        }
+        if (traveledPolylineRef.current) {
+          map.removeLayer(traveledPolylineRef.current);
+          traveledPolylineRef.current = null;
+        }
+      }
+    };
+  }, []);
+
+  // Multi-Stop Circuit Polyline when in Route Planner mode or round active
   useEffect(() => {
     const map = mapInstanceRef.current;
     if (!map) return;
@@ -282,7 +528,7 @@ export const MapComponent: React.FC<MapComponentProps> = ({
       multiStopPolylineRef.current = null;
     }
 
-    if (isRoutePlannerActive && deliveryRound && deliveryRound.stops.length > 0) {
+    if (deliveryRound && deliveryRound.stops.length > 0) {
       // Build circuit: Depot -> Stop 1 -> Stop 2 -> ... -> Stop N -> Depot
       const circuitCoords: [number, number][] = [
         [depot.lat, depot.lng],
@@ -293,20 +539,23 @@ export const MapComponent: React.FC<MapComponentProps> = ({
       const polyline = L.polyline(circuitCoords, {
         color: '#2563eb', // Blue-600
         weight: 5,
-        opacity: 0.9,
+        opacity: isPlaying ? 0.6 : 0.9,
+        dashArray: isPlaying ? '6, 6' : undefined,
         lineJoin: 'round',
       }).addTo(map);
 
       multiStopPolylineRef.current = polyline;
 
-      // Fit bounds to show all circuit stops
-      try {
-        map.fitBounds(polyline.getBounds(), { padding: [60, 60], maxZoom: 14 });
-      } catch {
-        // Fallback
+      // Fit bounds to show all circuit stops on initial load
+      if (isRoutePlannerActive && !isPlaying && progress === 0) {
+        try {
+          map.fitBounds(polyline.getBounds(), { padding: [60, 60], maxZoom: 14 });
+        } catch {
+          // Fallback
+        }
       }
     }
-  }, [isRoutePlannerActive, deliveryRound, depot]);
+  }, [isRoutePlannerActive, deliveryRound, depot, isPlaying, progress]);
 
   // Single Route Polyline & FlyTo when selectedClient changes (if not in multi-stop mode)
   useEffect(() => {
@@ -346,6 +595,45 @@ export const MapComponent: React.FC<MapComponentProps> = ({
   return (
     <div className="relative w-full h-full">
       <div id="leaflet-map" ref={mapContainerRef} className="w-full h-full" />
+
+      {/* Floating Route Playback Controls on Map */}
+      {circuit && truckState && deliveryRound && deliveryRound.stops.length > 0 && (
+        <div className="absolute bottom-6 left-1/2 -translate-x-1/2 z-[900] pointer-events-auto max-w-md md:max-w-lg w-[calc(100%-2rem)] md:w-auto flex justify-center">
+          {isPlaybackPanelVisible ? (
+            <RoutePlaybackControl
+              deliveryRound={deliveryRound}
+              circuit={circuit}
+              truckState={truckState}
+              isPlaying={isPlaying}
+              playbackSpeed={playbackSpeed}
+              followCamera={followCamera}
+              onTogglePlay={handleTogglePlay}
+              onReset={handleReset}
+              onSeek={handleSeek}
+              onChangeSpeed={setPlaybackSpeed}
+              onToggleFollowCamera={() => setFollowCamera((prev) => !prev)}
+              onJumpToWaypoint={handleJumpToWaypoint}
+              onClose={() => {
+                setIsPlaying(false);
+                setIsPlaybackPanelVisible(false);
+              }}
+            />
+          ) : (
+            <button
+              id="reopen-playback-btn"
+              type="button"
+              onClick={() => setIsPlaybackPanelVisible(true)}
+              className="px-4 py-2.5 bg-neutral-950/95 backdrop-blur-md text-amber-300 hover:text-white border border-amber-400/80 rounded-2xl text-xs font-black flex items-center gap-2 shadow-2xl transition-all hover:scale-105 cursor-pointer animate-in fade-in slide-in-from-bottom-2"
+            >
+              <Truck className="w-4 h-4 text-amber-400" />
+              <span>הפעל סימולציית נסיעה בסבב</span>
+              <span className="bg-amber-400 text-neutral-950 px-2 py-0.5 rounded-full text-[10px] font-black">
+                {deliveryRound.stops.length} תחנות
+              </span>
+            </button>
+          )}
+        </div>
+      )}
     </div>
   );
 };
