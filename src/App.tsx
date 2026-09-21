@@ -17,6 +17,7 @@ import { SyncSettingsModal } from './components/SyncSettingsModal';
 import { UnifiedAuditModal } from './components/UnifiedAuditModal';
 import { PWAInstallButton } from './components/PWAInstallButton';
 import { OfflineIndicator } from './components/OfflineIndicator';
+import { playSelectionChime } from './utils/audioChime';
 import {
   Building2,
   Sparkles,
@@ -70,6 +71,20 @@ export default function App() {
 
   // Multi-Stop Route Planner state (2-5 stops)
   const [routeStops, setRouteStops] = useState<ClientSite[]>([]);
+
+  // Smart Search & Dynamic GIS Interaction State
+  const [searchMatchingClients, setSearchMatchingClients] = useState<ClientSite[] | null>(null);
+  const [searchQuery, setSearchQuery] = useState<string>('');
+
+  const handleSearchResultsChange = useCallback((matching: ClientSite[], q: string) => {
+    if (q.trim().length >= 3) {
+      setSearchMatchingClients(matching);
+      setSearchQuery(q);
+    } else {
+      setSearchMatchingClients(null);
+      setSearchQuery('');
+    }
+  }, []);
 
   // Google Sheets Sync State
   const [customScriptUrl, setCustomScriptUrl] = useState<string>(() => {
@@ -169,6 +184,7 @@ export default function App() {
   }, []);
 
   const handleSelectClient = useCallback((client: ClientSite) => {
+    playSelectionChime();
     setSelectedClient(client);
     setIsDepotSelected(false);
   }, []);
@@ -176,6 +192,8 @@ export default function App() {
   const handleSelectDepot = useCallback(() => {
     setIsDepotSelected(true);
     setSelectedClient(null);
+    setSearchMatchingClients(null);
+    setSearchQuery('');
   }, []);
 
   const handleCloseCard = useCallback(() => {
@@ -228,6 +246,8 @@ export default function App() {
           deliveryRound={deliveryRound}
           isRoutePlannerActive={isRoutePlannerOpen}
           onUpdateClientCoordinates={handleUpdateClientCoordinates}
+          searchMatchingClients={searchMatchingClients}
+          searchQuery={searchQuery}
         />
       </div>
 
@@ -236,66 +256,16 @@ export default function App() {
         {/* Right Section in RTL: Brand & Google Maps Floating Search Bar */}
         <div className="flex flex-col sm:flex-row items-start sm:items-center gap-2.5 w-full md:w-auto">
           {/* Company Brand Logo Pill */}
-          <div
-            style={{
-              width: '207.555px',
-              height: '54px',
-              marginLeft: '407px',
-              marginRight: '11px',
-              marginBottom: '120px',
-              marginTop: '-64px',
-              paddingRight: '8px',
-              paddingLeft: '8px',
-              paddingTop: '27px',
-              paddingBottom: '8px',
-              color: '#000206',
-              backgroundColor: '#8c9cb6',
-              fontSize: '8px',
-              lineHeight: '22px',
-              fontWeight: 'bold',
-            }}
-            className="backdrop-blur-md rounded-2xl shadow-xl border border-neutral-700/80 flex items-center gap-2.5 pointer-events-auto"
-          >
-            <div
-              style={{
-                color: '#0e73e8',
-                marginTop: '-14px',
-              }}
-              className="w-8 h-8 rounded-xl bg-gradient-to-br from-amber-400 to-amber-500 flex items-center justify-center font-black text-sm shadow-sm"
-            >
+          <div className="bg-white/95 backdrop-blur-md rounded-2xl shadow-xl border border-slate-200/80 px-3.5 py-2 flex items-center gap-2.5 pointer-events-auto shrink-0">
+            <div className="w-8 h-8 rounded-xl bg-gradient-to-br from-amber-400 to-amber-500 flex items-center justify-center font-black text-sm text-neutral-950 shadow-sm">
               סבן
             </div>
             <div>
-              <h1
-                style={{
-                  paddingLeft: '4px',
-                  paddingRight: '6px',
-                  paddingBottom: '43px',
-                  marginTop: '-14px',
-                }}
-                className="font-extrabold text-xs md:text-sm tracking-tight text-white leading-none"
-              >
+              <h1 className="font-extrabold text-xs md:text-sm tracking-tight text-neutral-900 leading-none">
                 ח. סבן חומרי בניין (1994) בע״מ
               </h1>
-              <p
-                style={{
-                  color: '#100b00',
-                  fontWeight: 'bold',
-                  fontSize: '12px',
-                  paddingLeft: '1px',
-                  paddingRight: '8px',
-                  marginRight: '4px',
-                  marginLeft: '8px',
-                  marginTop: '-46px',
-                  marginBottom: '6px',
-                  fontFamily: 'Arial',
-                  borderColor: '#a47d17',
-                  borderStyle: 'groove',
-                  borderRadius: '7px',
-                }}
-                className="leading-tight border"
-              >
-                מציאת מק"ט הובלה 
+              <p className="text-[11px] font-bold text-sky-700 leading-tight mt-0.5">
+                SabanOS Maps — ניהול וסידור הובלות
               </p>
             </div>
           </div>
@@ -309,6 +279,7 @@ export default function App() {
             onFilterChange={setActiveFilter}
             onResetToDepot={handleSelectDepot}
             onOpenAddClientModal={() => setIsAddClientModalOpen(true)}
+            onSearchResultsChange={handleSearchResultsChange}
           />
         </div>
 

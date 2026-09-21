@@ -217,15 +217,16 @@ export const ClientDetailsCard: React.FC<ClientDetailsCardProps> = ({
             target="_blank"
             rel="noreferrer"
             className="group relative overflow-hidden px-3.5 py-3 min-h-[60px] rounded-2xl bg-gradient-to-br from-neutral-900 via-neutral-850 to-neutral-950 hover:from-neutral-800 hover:to-neutral-900 text-white shadow-md shadow-neutral-950/20 flex items-center justify-between gap-2 transition-all duration-200 cursor-pointer active:scale-[0.98] border border-neutral-750"
-            title="נווט עם Google Maps לנ.צ מדויק"
+            title="נווט עם מר גוגל לנ.צ מדויק"
           >
             <div className="flex items-center gap-2.5 min-w-0">
               <div className="w-10 h-10 rounded-xl bg-white/10 flex items-center justify-center text-xl shadow-inner shrink-0 group-hover:scale-110 transition-transform">
                 🗺️
               </div>
               <div className="text-right min-w-0">
-                <div className="text-sm md:text-base font-black text-white leading-tight tracking-tight">
-                  Google Maps
+                <div className="text-sm md:text-base font-black text-white leading-tight tracking-tight flex items-center gap-1">
+                  <span>מר גוגל</span>
+                  <span>🌍</span>
                 </div>
                 <div className="text-[11px] text-neutral-300 font-bold leading-tight mt-0.5">
                   מפות גוגל

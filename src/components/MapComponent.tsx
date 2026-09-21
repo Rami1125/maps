@@ -23,6 +23,8 @@ interface MapComponentProps {
   onMapClick?: (lat: number, lng: number) => void;
   onUpdateClientCoordinates?: (clientId: string, lat: number, lng: number) => void;
   isPinAdjustMode?: boolean;
+  searchMatchingClients?: ClientSite[] | null;
+  searchQuery?: string;
 }
 
 export const MapComponent: React.FC<MapComponentProps> = ({
@@ -38,6 +40,8 @@ export const MapComponent: React.FC<MapComponentProps> = ({
   onMapClick,
   onUpdateClientCoordinates,
   isPinAdjustMode = false,
+  searchMatchingClients = null,
+  searchQuery = '',
 }) => {
   const mapContainerRef = useRef<HTMLDivElement>(null);
   const mapInstanceRef = useRef<L.Map | null>(null);
@@ -239,6 +243,10 @@ export const MapComponent: React.FC<MapComponentProps> = ({
       const isSelected = selectedClient?.id === client.id;
       const isProblematic = client.status === 'problematic';
 
+      // Check if dynamic search is active and if this client matches
+      const isSearchActive = Boolean(searchQuery && searchQuery.trim().length >= 3 && searchMatchingClients !== null);
+      const isSearchMatch = isSearchActive ? (searchMatchingClients?.some((m) => m.id === client.id) ?? false) : true;
+
       // Check if client is part of the multi-stop delivery round
       const routeStop = deliveryRound?.stops.find((s) => s.client.id === client.id);
 
@@ -247,7 +255,9 @@ export const MapComponent: React.FC<MapComponentProps> = ({
       if (routeStop) {
         // Multi-stop waypoint marker (e.g. Stop #1, #2, #3)
         markerHtml = `
-          <div class="relative flex flex-col items-center justify-center cursor-pointer transition-all duration-200">
+          <div class="relative flex flex-col items-center justify-center cursor-pointer transition-all duration-200 ${
+            isSearchActive && !isSearchMatch ? 'opacity-25 pointer-events-none scale-90' : ''
+          }">
             <div class="absolute -inset-2 rounded-full bg-blue-500 opacity-50 animate-pulse"></div>
             <div class="w-9 h-9 rounded-full bg-blue-600 border-2 border-white text-white shadow-xl flex items-center justify-center text-sm font-black ring-4 ring-blue-300 transform scale-110">
               ${routeStop.stopIndex}
@@ -265,9 +275,13 @@ export const MapComponent: React.FC<MapComponentProps> = ({
         const iconEmoji = isProblematic ? '⚠️' : '📍';
         const glowRing = isSelected
           ? '<div class="absolute -inset-2.5 rounded-full bg-amber-400 opacity-80 animate-ping"></div>'
+          : isSearchActive && isSearchMatch
+          ? '<div class="absolute -inset-3 rounded-full bg-sky-400 opacity-80 animate-pulse ring-4 ring-sky-300"></div>'
           : '';
         const ringBorder = isSelected
           ? 'ring-4 ring-amber-400 ring-offset-2 scale-115 shadow-2xl'
+          : isSearchActive && isSearchMatch
+          ? 'ring-4 ring-sky-400 ring-offset-2 scale-115 shadow-2xl'
           : 'hover:scale-110';
 
         // Precise GPS Badge on Marker
@@ -279,12 +293,22 @@ export const MapComponent: React.FC<MapComponentProps> = ({
           ? `<div class="mt-1 bg-amber-400 text-neutral-950 font-black text-[10px] px-2 py-0.5 rounded-full shadow-lg border border-amber-600 flex items-center gap-1 cursor-grab active:cursor-grabbing whitespace-nowrap animate-bounce">
               <span>🎯 גרור לשער האתר</span>
             </div>`
+          : isSearchActive && isSearchMatch
+          ? `<div class="mt-1 bg-sky-600 text-white font-black text-[10px] px-2 py-0.5 rounded-full shadow-lg border border-white max-w-[130px] truncate text-center pointer-events-none animate-pulse">
+              ${client.name.split('/')[0]}
+            </div>`
           : `<div class="mt-1 bg-white/95 backdrop-blur-xs text-neutral-800 font-bold text-[10px] px-1.5 py-0.5 rounded shadow border border-neutral-200 max-w-[110px] truncate text-center pointer-events-none">
               ${client.name.split('/')[0]}
             </div>`;
 
+        const wrapperStyle = isSearchActive && !isSearchMatch
+          ? 'opacity-25 grayscale-[30%] pointer-events-none scale-90 transition-all duration-300'
+          : isSearchActive && isSearchMatch
+          ? 'scale-110 z-30 transition-all duration-300'
+          : 'transition-all duration-200';
+
         markerHtml = `
-          <div class="relative flex flex-col items-center justify-center cursor-pointer transition-all duration-200">
+          <div class="relative flex flex-col items-center justify-center cursor-pointer ${wrapperStyle}">
             ${glowRing}
             <div class="relative w-8 h-8 rounded-full ${bgClass} ${ringBorder} text-white shadow-lg flex items-center justify-center text-xs font-black border-2 transition-transform">
               ${iconEmoji}
@@ -349,7 +373,7 @@ export const MapComponent: React.FC<MapComponentProps> = ({
 
       markersRef.current[client.id] = marker;
     });
-  }, [clients, selectedClient, deliveryRound, onSelectClient, onUpdateClientCoordinates]);
+  }, [clients, selectedClient, deliveryRound, onSelectClient, onUpdateClientCoordinates, searchMatchingClients, searchQuery]);
 
   // Animation Loop (60fps requestAnimationFrame)
   useEffect(() => {
@@ -636,16 +660,96 @@ export const MapComponent: React.FC<MapComponentProps> = ({
       routePolylineRef.current = polyline;
 
       const isDesktop = window.innerWidth >= 768;
-      const targetLng = isDesktop ? clientLng + 0.015 : clientLng;
+      const targetLng = isDesktop ? clientLng + 0.006 : clientLng;
 
       if (!isNaN(clientLat) && !isNaN(targetLng) && isFinite(clientLat) && isFinite(targetLng)) {
-        map.flyTo([clientLat, targetLng], 14, {
+        // High street level zoom 16-17 with smooth flyTo
+        map.flyTo([clientLat, targetLng], 16.5, {
           duration: 1.2,
           easeLinearity: 0.25,
         });
+
+        // Open target marker tooltip
+        const marker = markersRef.current[selectedClient.id];
+        if (marker) {
+          marker.openTooltip();
+        }
       }
     }
   }, [selectedClient, depot, isRoutePlannerActive]);
+
+  // Dynamic Camera FitBounds & Zoom on Search Results (2+ matches -> fitBounds, 1 match -> flyTo)
+  useEffect(() => {
+    const map = mapInstanceRef.current;
+    if (!map) return;
+
+    if (!searchQuery || searchQuery.trim().length < 3 || !searchMatchingClients) {
+      return;
+    }
+
+    // When 2 or more results match: fitBounds to frame all matching pins with 80px padding
+    if (searchMatchingClients.length > 1) {
+      const validCoords: [number, number][] = searchMatchingClients
+        .filter(
+          (c) =>
+            typeof c.lat === 'number' &&
+            typeof c.lng === 'number' &&
+            !isNaN(c.lat) &&
+            !isNaN(c.lng) &&
+            isFinite(c.lat) &&
+            isFinite(c.lng) &&
+            (c.lat !== 0 || c.lng !== 0)
+        )
+        .map((c) => [c.lat, c.lng]);
+
+      if (validCoords.length > 1) {
+        try {
+          const bounds = L.latLngBounds(validCoords);
+          map.fitBounds(bounds, {
+            padding: [80, 80],
+            maxZoom: 16,
+            animate: true,
+            duration: 0.8,
+          });
+        } catch (e) {
+          console.warn('fitBounds error:', e);
+        }
+      }
+    } else if (searchMatchingClients.length === 1) {
+      // Single match: flyTo exact pin with street zoom level 16-17 and open tooltip
+      const target = searchMatchingClients[0];
+      if (target && !isNaN(target.lat) && !isNaN(target.lng)) {
+        const isDesktop = window.innerWidth >= 768;
+        const targetLng = isDesktop ? target.lng + 0.006 : target.lng;
+        map.flyTo([target.lat, targetLng], 16.5, {
+          duration: 1.2,
+          easeLinearity: 0.25,
+        });
+        const marker = markersRef.current[target.id];
+        if (marker) {
+          marker.openTooltip();
+        }
+      }
+    }
+  }, [searchMatchingClients, searchQuery]);
+
+  // Return to full Depot overview when isDepotSelected is triggered
+  useEffect(() => {
+    const map = mapInstanceRef.current;
+    if (!map) return;
+    if (isDepotSelected) {
+      const safeDepotLat =
+        typeof depot?.lat === 'number' && !isNaN(depot.lat) && isFinite(depot.lat) ? depot.lat : 32.15574;
+      const safeDepotLng =
+        typeof depot?.lng === 'number' && !isNaN(depot.lng) && isFinite(depot.lng) ? depot.lng : 34.89668;
+      map.flyTo([safeDepotLat, safeDepotLng], 12.5, {
+        duration: 1.2,
+      });
+      if (depotMarkerRef.current) {
+        depotMarkerRef.current.openTooltip();
+      }
+    }
+  }, [isDepotSelected, depot]);
 
   return (
     <div className="relative w-full h-full">
