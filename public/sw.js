@@ -47,8 +47,19 @@ self.addEventListener('fetch', (event) => {
   const request = event.request;
   const url = new URL(request.url);
 
-  // Ignore non-GET requests and chrome extensions
-  if (request.method !== 'GET' || url.protocol.startsWith('chrome-extension')) {
+  // Ignore non-GET requests, browser extensions, and external third-party APIs
+  if (
+    request.method !== 'GET' ||
+    url.protocol.startsWith('chrome-extension') ||
+    url.protocol.startsWith('moz-extension') ||
+    url.hostname.includes('execute-api') ||
+    url.hostname.includes('amazonaws.com') ||
+    url.hostname.includes('onesignal.com') ||
+    url.hostname.includes('make.com') ||
+    url.hostname.includes('script.google.com') ||
+    url.hostname.includes('waze.com') ||
+    url.hostname.includes('google.com')
+  ) {
     return;
   }
 
@@ -117,3 +128,14 @@ self.addEventListener('fetch', (event) => {
     })
   );
 });
+
+// Message Event - Handle Window Messages & postMessage safely
+self.addEventListener('message', (event) => {
+  if (event.data && event.data.type === 'SKIP_WAITING') {
+    self.skipWaiting();
+  }
+  if (event.ports && event.ports[0]) {
+    event.ports[0].postMessage({ status: 'ok', sw: 'saban-maps-pwa' });
+  }
+});
+
