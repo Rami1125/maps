@@ -155,24 +155,31 @@ export const SearchBar: React.FC<SearchBarProps> = ({
       className="relative z-30 w-full max-w-md pointer-events-auto transition-all"
     >
       {/* 1. Modern Floating Search Bar Container (Glassmorphism & Elevation) */}
-      <div className="relative rounded-2xl bg-white/95 backdrop-blur-md shadow-xl border border-slate-200/80 transition-all duration-200 focus-within:shadow-2xl focus-within:border-sky-500 focus-within:ring-2 focus-within:ring-sky-200">
-        <div className="flex items-center px-3 py-2 gap-2">
+      <div className="relative rounded-2xl bg-white/95 backdrop-blur-xl shadow-xl shadow-slate-900/5 border border-slate-200/90 transition-all duration-300 hover:shadow-2xl focus-within:shadow-2xl focus-within:border-sky-500 focus-within:ring-4 focus-within:ring-sky-500/15">
+        <div className="flex items-center px-3 py-1.5 md:py-2 gap-2">
           {/* Depot Quick Reset Button */}
           <button
             type="button"
             onClick={onResetToDepot}
             title="חזרה למבט-על מלא: מגרש סבן החרש 10 (בסיס מוצא)"
-            className="min-h-[44px] min-w-[44px] p-2 text-sky-700 hover:bg-sky-50 rounded-xl transition-colors cursor-pointer flex items-center justify-center shrink-0 group active:scale-95"
+            className="min-h-[44px] min-w-[44px] p-1.5 text-sky-700 hover:bg-sky-50/80 rounded-xl transition-all cursor-pointer flex items-center justify-center shrink-0 group active:scale-95"
           >
-            <Building2 className="w-5 h-5 text-sky-600 group-hover:scale-110 transition-transform" />
+            <div className="w-8 h-8 rounded-lg bg-sky-50 group-hover:bg-sky-100 flex items-center justify-center transition-colors shadow-2xs">
+              <Building2 className="w-4 h-4 text-sky-600 group-hover:scale-110 group-hover:-rotate-3 transition-transform" />
+            </div>
           </button>
 
-          {/* Interactive Search Icon (Changes to Sky-600 when typing) */}
-          <Search
-            className={`w-4 h-4 shrink-0 transition-colors duration-200 ${
-              isTyping ? 'text-sky-600 animate-pulse' : 'text-slate-400'
-            }`}
-          />
+          {/* Interactive Search Icon (Changes to Sky-600 with subtle glow when typing) */}
+          <div className="relative flex items-center justify-center shrink-0">
+            {isTyping && (
+              <span className="absolute -inset-1 rounded-full bg-sky-400/30 animate-ping" />
+            )}
+            <Search
+              className={`w-4 h-4 transition-all duration-300 ${
+                isTyping ? 'text-sky-600 scale-110' : 'text-slate-400'
+              }`}
+            />
+          </div>
 
           {/* Search Input Field */}
           <div className="relative flex-1 min-w-0">
@@ -427,11 +434,7 @@ export const SearchBar: React.FC<SearchBarProps> = ({
       {/* 3. Horizontal Quick Filter Chips Slider (Clean scroll without overlapping) */}
       <div
         id="search-filter-chips"
-        className="flex items-center gap-1.5 overflow-x-auto pt-2 pb-0.5 px-0.5 no-scrollbar pointer-events-auto"
-        style={{
-          height: '62px',
-          width: '561px',
-        }}
+        className="flex items-center gap-1.5 overflow-x-auto pt-2 pb-1 px-0.5 no-scrollbar pointer-events-auto max-w-full select-none"
       >
         {filterChips.map((chip) => {
           const isActive = activeFilter === chip.id;
@@ -440,17 +443,17 @@ export const SearchBar: React.FC<SearchBarProps> = ({
               key={chip.id}
               type="button"
               onClick={() => onFilterChange(chip.id)}
-              className={`min-h-[34px] text-xs font-bold px-3 py-1 rounded-full whitespace-nowrap shadow-xs transition-all cursor-pointer flex items-center gap-1.5 shrink-0 active:scale-95 ${
+              className={`min-h-[34px] text-xs font-bold px-3 py-1 rounded-full whitespace-nowrap transition-all cursor-pointer flex items-center gap-1.5 shrink-0 active:scale-95 hover:-translate-y-0.5 ${
                 isActive
-                  ? 'bg-slate-900 text-white shadow-slate-900/25 ring-2 ring-slate-700'
-                  : 'bg-white/95 backdrop-blur-md text-slate-700 hover:bg-slate-100 border border-slate-200/90'
+                  ? 'bg-slate-900 text-white shadow-md shadow-slate-900/20 ring-2 ring-slate-700'
+                  : 'bg-white/95 backdrop-blur-md text-slate-700 hover:bg-slate-50 hover:text-slate-900 border border-slate-200/90 shadow-2xs hover:shadow-xs'
               }`}
             >
-              <span>{chip.icon}</span>
+              <span className="text-xs transition-transform hover:scale-110">{chip.icon}</span>
               <span>{chip.label}</span>
               <span
-                className={`text-[10px] font-mono px-1.5 py-0.2 rounded-full font-bold ${
-                  isActive ? 'bg-slate-800 text-white' : 'bg-slate-100 text-slate-600'
+                className={`text-[10px] font-mono px-1.5 py-0.5 rounded-full font-bold transition-colors ${
+                  isActive ? 'bg-slate-800 text-slate-200' : 'bg-slate-100 text-slate-600'
                 }`}
               >
                 {chip.count}

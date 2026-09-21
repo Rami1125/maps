@@ -285,22 +285,8 @@ export default function App() {
           />
         </div>
 
-        {/* Left Section in RTL: Action Controls Ribbon */}
-        <div
-          className="w-full md:w-auto overflow-x-auto no-scrollbar py-0.5 flex items-center gap-1.5 pointer-events-auto"
-          style={{
-            marginLeft: '-300px',
-            marginRight: '-187px',
-            marginBottom: '-8px',
-            marginTop: '-28px',
-            paddingTop: '-2px',
-            paddingLeft: '-5px',
-            paddingRight: '-13px',
-            paddingBottom: '-6px',
-            width: '1074.805px',
-            height: '92px',
-          }}
-        >
+        {/* Left Section in RTL: Action Controls Ribbon (Clean, responsive, zero-overlap) */}
+        <div className="w-full md:w-auto overflow-x-auto no-scrollbar py-1 px-0.5 flex items-center gap-2 pointer-events-auto shrink-0 transition-all">
           {/* PWA App Install Button */}
           <PWAInstallButton />
 
@@ -312,22 +298,25 @@ export default function App() {
               setIsUnifiedAuditOpen(true);
             }}
             title="מערכת מאוחדת - הזמנות, תעודות משלוח והצלבה (דוחות איתוראן אוג׳-ספט׳)"
-            className="min-h-[36px] px-3 py-1.5 bg-gradient-to-r from-amber-400 via-orange-400 to-amber-500 hover:from-amber-500 hover:to-orange-500 text-neutral-950 font-black rounded-xl text-xs flex items-center gap-1.5 shadow-md border border-amber-300 transition-all cursor-pointer whitespace-nowrap active:scale-95 shrink-0"
+            className="min-h-[38px] px-3.5 py-1.5 bg-gradient-to-r from-amber-400 via-amber-300 to-amber-500 hover:from-amber-500 hover:to-amber-400 text-neutral-950 font-black rounded-xl text-xs flex items-center gap-1.5 shadow-sm hover:shadow-md border border-amber-300/90 transition-all cursor-pointer whitespace-nowrap active:scale-95 hover:-translate-y-0.5 shrink-0"
           >
-            <span className="text-xs">⚖️</span>
+            <span className="text-sm">⚖️</span>
             <span>הצלבה ומערכת מאוחדת</span>
+            <span className="bg-neutral-950/90 text-amber-300 text-[10px] font-mono px-1.5 py-0.2 rounded-md font-extrabold shadow-2xs">
+              אוג׳-ספט׳
+            </span>
           </button>
 
           {/* Multi-Stop Route Planner Toggle Button */}
           <button
             type="button"
             onClick={() => setIsRoutePlannerOpen(!isRoutePlannerOpen)}
-            className={`min-h-[36px] px-3 py-1.5 rounded-xl font-bold text-xs flex items-center gap-1.5 shadow-md transition-all cursor-pointer whitespace-nowrap active:scale-95 shrink-0 ${
+            className={`min-h-[38px] px-3.5 py-1.5 rounded-xl font-bold text-xs flex items-center gap-1.5 shadow-sm hover:shadow-md transition-all cursor-pointer whitespace-nowrap active:scale-95 hover:-translate-y-0.5 shrink-0 ${
               isRoutePlannerOpen
-                ? 'bg-blue-600 text-white ring-2 ring-blue-400'
+                ? 'bg-blue-600 text-white ring-2 ring-blue-400 shadow-blue-500/20'
                 : routeStops.length > 0
-                ? 'bg-white text-blue-700 border border-blue-300 animate-pulse'
-                : 'bg-white/95 text-neutral-800 hover:bg-neutral-100 border border-neutral-200'
+                ? 'bg-white text-blue-700 border border-blue-300 shadow-blue-500/10'
+                : 'bg-white/95 text-slate-800 hover:bg-slate-50 border border-slate-200/90'
             }`}
           >
             <Route className="w-3.5 h-3.5 text-blue-500" />
@@ -339,7 +328,7 @@ export default function App() {
             type="button"
             onClick={() => setIsAddClientModalOpen(true)}
             title="איתור גיאוגרפי של כתובת חדשה"
-            className="min-h-[36px] px-2.5 py-1.5 bg-white/95 text-neutral-800 hover:bg-neutral-100 border border-neutral-200 rounded-xl text-xs font-bold flex items-center gap-1 shadow-md transition-colors cursor-pointer whitespace-nowrap active:scale-95 shrink-0"
+            className="min-h-[38px] px-3 py-1.5 bg-white/95 hover:bg-slate-50 text-slate-800 border border-slate-200/90 rounded-xl text-xs font-bold flex items-center gap-1.5 shadow-sm hover:shadow-md transition-all cursor-pointer whitespace-nowrap active:scale-95 hover:-translate-y-0.5 shrink-0"
           >
             <Plus className="w-3.5 h-3.5 text-blue-600" />
             <span>יעד חדש</span>
@@ -350,10 +339,10 @@ export default function App() {
             type="button"
             onClick={() => setIsSyncModalOpen(true)}
             title="הגדרות סנכרון Google Sheets ו-Make.com"
-            className={`min-h-[36px] px-2.5 py-1.5 rounded-xl text-xs font-bold flex items-center gap-1.5 shadow-md border transition-all cursor-pointer whitespace-nowrap active:scale-95 shrink-0 ${
+            className={`min-h-[38px] px-3 py-1.5 rounded-xl text-xs font-bold flex items-center gap-1.5 shadow-sm hover:shadow-md border transition-all cursor-pointer whitespace-nowrap active:scale-95 hover:-translate-y-0.5 shrink-0 ${
               syncStatus.scriptError
                 ? 'bg-amber-950/90 text-amber-300 border-amber-500'
-                : 'bg-neutral-900/90 text-white border-neutral-700'
+                : 'bg-slate-900 text-white border-slate-700'
             }`}
           >
             <span
@@ -365,7 +354,7 @@ export default function App() {
                   : 'bg-blue-400'
               }`}
             />
-            <span className="text-[11px]">
+            <span className="text-[11px] font-mono">
               {syncStatus.isLive ? 'Sheets חי' : 'מאגר 63'}
             </span>
           </button>

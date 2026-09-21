@@ -191,12 +191,16 @@ export const MapComponent: React.FC<MapComponentProps> = ({
     }
 
     const depotIconHtml = `
-      <div class="relative flex items-center justify-center cursor-pointer group">
-        <div class="absolute w-12 h-12 rounded-full bg-amber-400 opacity-60 pulse-effect"></div>
-        <div class="w-10 h-10 rounded-2xl bg-gradient-to-br from-blue-700 to-indigo-900 border-2 border-amber-400 shadow-xl flex items-center justify-center text-white text-lg font-bold transform transition-transform hover:scale-110">
+      <div class="relative flex flex-col items-center justify-center cursor-pointer group select-none">
+        <div class="absolute -inset-3 rounded-full bg-amber-400/30 animate-pulse"></div>
+        <div class="relative w-11 h-11 rounded-2xl bg-gradient-to-tr from-slate-900 via-blue-950 to-indigo-900 border-2 border-amber-400 shadow-xl flex items-center justify-center text-white text-lg font-bold transform transition-all duration-300 group-hover:scale-110 group-hover:-translate-y-1">
           🏗️
+          <span class="absolute -top-1 -right-1 flex h-3 w-3">
+            <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-amber-400 opacity-75"></span>
+            <span class="relative inline-flex rounded-full h-3 w-3 bg-amber-500"></span>
+          </span>
         </div>
-        <div class="absolute -bottom-6 bg-blue-900/95 backdrop-blur-sm text-amber-300 font-bold text-[11px] px-2 py-0.5 rounded-full border border-amber-400/50 shadow-md whitespace-nowrap">
+        <div class="mt-1 bg-slate-900/95 backdrop-blur-md text-amber-300 font-black text-[10px] px-2.5 py-0.5 rounded-full border border-amber-400/60 shadow-lg whitespace-nowrap pointer-events-none">
           מגרש סבן (בסיס מוצא)
         </div>
       </div>
@@ -255,49 +259,49 @@ export const MapComponent: React.FC<MapComponentProps> = ({
       if (routeStop) {
         // Multi-stop waypoint marker (e.g. Stop #1, #2, #3)
         markerHtml = `
-          <div class="relative flex flex-col items-center justify-center cursor-pointer transition-all duration-200 ${
+          <div class="relative flex flex-col items-center justify-center cursor-pointer transition-all duration-200 select-none ${
             isSearchActive && !isSearchMatch ? 'opacity-25 pointer-events-none scale-90' : ''
           }">
-            <div class="absolute -inset-2 rounded-full bg-blue-500 opacity-50 animate-pulse"></div>
-            <div class="w-9 h-9 rounded-full bg-blue-600 border-2 border-white text-white shadow-xl flex items-center justify-center text-sm font-black ring-4 ring-blue-300 transform scale-110">
+            <div class="absolute -inset-2.5 rounded-full bg-blue-500/40 animate-pulse"></div>
+            <div class="relative w-9 h-9 rounded-2xl bg-gradient-to-tr from-blue-700 to-indigo-600 border-2 border-white text-white shadow-xl flex items-center justify-center text-sm font-black ring-4 ring-blue-300/80 transform scale-110">
               ${routeStop.stopIndex}
             </div>
-            <div class="mt-1 bg-neutral-900 text-white font-black text-[10px] px-2 py-0.5 rounded-full shadow border border-blue-400 max-w-[120px] truncate text-center pointer-events-none">
+            <div class="mt-1 bg-slate-900/95 text-white font-black text-[10px] px-2.5 py-0.5 rounded-full shadow-md border border-blue-400/80 max-w-[125px] truncate text-center pointer-events-none">
               תחנה #${routeStop.stopIndex}: ${client.name.split('/')[0]}
             </div>
           </div>
         `;
       } else {
-        const bgClass = isProblematic
-          ? 'bg-rose-600 border-rose-200'
-          : 'bg-emerald-600 border-emerald-100';
+        const bgGradient = isProblematic
+          ? 'bg-gradient-to-tr from-rose-600 via-rose-500 to-amber-500 border-white/95 shadow-rose-600/30'
+          : 'bg-gradient-to-tr from-emerald-600 via-emerald-500 to-teal-400 border-white/95 shadow-emerald-600/30';
 
         const iconEmoji = isProblematic ? '⚠️' : '📍';
         const glowRing = isSelected
-          ? '<div class="absolute -inset-2.5 rounded-full bg-amber-400 opacity-80 animate-ping"></div>'
+          ? '<div class="absolute -inset-2.5 rounded-full bg-amber-400/70 animate-ping"></div><div class="absolute -inset-1.5 rounded-full bg-amber-400/40 animate-pulse"></div>'
           : isSearchActive && isSearchMatch
-          ? '<div class="absolute -inset-3 rounded-full bg-sky-400 opacity-80 animate-pulse ring-4 ring-sky-300"></div>'
+          ? '<div class="absolute -inset-3 rounded-full bg-sky-400/80 animate-pulse ring-4 ring-sky-300/60"></div>'
           : '';
         const ringBorder = isSelected
-          ? 'ring-4 ring-amber-400 ring-offset-2 scale-115 shadow-2xl'
+          ? 'ring-4 ring-amber-400/90 ring-offset-2 scale-115 shadow-2xl'
           : isSearchActive && isSearchMatch
-          ? 'ring-4 ring-sky-400 ring-offset-2 scale-115 shadow-2xl'
-          : 'hover:scale-110';
+          ? 'ring-4 ring-sky-400/90 ring-offset-2 scale-115 shadow-2xl'
+          : 'hover:scale-110 hover:-translate-y-0.5';
 
         // Precise GPS Badge on Marker
         const gpsIndicator = client.hasExactGps
-          ? '<span class="absolute -top-1.5 -right-1.5 w-4 h-4 bg-blue-600 text-white rounded-full flex items-center justify-center text-[9px] border border-white font-black shadow-sm" title="מיקום GPS מדויק 100%">🎯</span>'
+          ? '<span class="absolute -top-1.5 -right-1.5 w-4 h-4 bg-sky-600 text-white rounded-full flex items-center justify-center text-[9px] border border-white font-black shadow-xs" title="מיקום GPS מדויק 100%">🎯</span>'
           : '';
 
         const dragLabel = isSelected
-          ? `<div class="mt-1 bg-amber-400 text-neutral-950 font-black text-[10px] px-2 py-0.5 rounded-full shadow-lg border border-amber-600 flex items-center gap-1 cursor-grab active:cursor-grabbing whitespace-nowrap animate-bounce">
+          ? `<div class="mt-1.5 bg-amber-400 text-neutral-950 font-black text-[10px] px-2.5 py-0.5 rounded-full shadow-lg border border-amber-500/80 flex items-center gap-1 cursor-grab active:cursor-grabbing whitespace-nowrap animate-bounce">
               <span>🎯 גרור לשער האתר</span>
             </div>`
           : isSearchActive && isSearchMatch
           ? `<div class="mt-1 bg-sky-600 text-white font-black text-[10px] px-2 py-0.5 rounded-full shadow-lg border border-white max-w-[130px] truncate text-center pointer-events-none animate-pulse">
               ${client.name.split('/')[0]}
             </div>`
-          : `<div class="mt-1 bg-white/95 backdrop-blur-xs text-neutral-800 font-bold text-[10px] px-1.5 py-0.5 rounded shadow border border-neutral-200 max-w-[110px] truncate text-center pointer-events-none">
+          : `<div class="mt-1 bg-white/95 backdrop-blur-xs text-slate-800 font-bold text-[10px] px-2 py-0.5 rounded-full shadow-sm border border-slate-200/90 max-w-[115px] truncate text-center pointer-events-none transition-transform">
               ${client.name.split('/')[0]}
             </div>`;
 
@@ -308,10 +312,10 @@ export const MapComponent: React.FC<MapComponentProps> = ({
           : 'transition-all duration-200';
 
         markerHtml = `
-          <div class="relative flex flex-col items-center justify-center cursor-pointer ${wrapperStyle}">
+          <div class="relative flex flex-col items-center justify-center cursor-pointer select-none ${wrapperStyle}">
             ${glowRing}
-            <div class="relative w-8 h-8 rounded-full ${bgClass} ${ringBorder} text-white shadow-lg flex items-center justify-center text-xs font-black border-2 transition-transform">
-              ${iconEmoji}
+            <div class="relative w-8 h-8 rounded-2xl ${bgGradient} ${ringBorder} text-white shadow-md flex items-center justify-center text-xs font-black border-2 transition-all duration-200">
+              <span class="drop-shadow-xs">${iconEmoji}</span>
               ${gpsIndicator}
             </div>
             ${dragLabel}
