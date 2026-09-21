@@ -194,7 +194,8 @@ export function calculateRoundSavings(
 export function generateMultiStopWhatsAppMessage(
   round: DeliveryRound,
   truck: TruckConfig,
-  fuelRateNis: number
+  fuelRateNis: number,
+  timeEstimation?: RoundTimeEstimation
 ): string {
   const dateStr = new Date().toLocaleDateString('he-IL', {
     weekday: 'long',
@@ -205,11 +206,16 @@ export function generateMultiStopWhatsAppMessage(
   let stopsText = '';
   round.stops.forEach((stop) => {
     const wazeUrl = `https://waze.com/ul?ll=${stop.client.lat},${stop.client.lng}&navigate=yes`;
+    const legEst = timeEstimation?.legs.find((l) => l.stopIndex === stop.stopIndex);
+    const scheduleStr = legEst
+      ? `\n⏰ לו"ז משוער: הגעה ב-${legEst.arrivalTime} | יציאה ב-${legEst.departureTime} (שהייה: ${legEst.totalStopMinutes} דק')`
+      : '';
+
     stopsText += `
 *תחנה #${stop.stopIndex}: ${stop.client.name}* (קומקס: #${stop.client.comaxId})
 📍 כתובת: ${stop.client.address}, ${stop.client.city}
 📞 איש קשר: ${stop.client.contactName} (${stop.client.contactPhone})
-⏱️ זמן פריקה: ${truck.id === 'crane' ? stop.client.craneUnloadMinutes : stop.client.flatbedUnloadMinutes} דק'
+⏱️ זמן פריקה: ${truck.id === 'crane' ? stop.client.craneUnloadMinutes : stop.client.flatbedUnloadMinutes} דק' (+${timeEstimation?.stopOverheadMinutes || 8} דק' שער ותמרון)${scheduleStr}
 ⚠️ הערות: ${stop.client.observations}
 🧭 Waze: ${wazeUrl}
 `;
@@ -222,6 +228,13 @@ export function generateMultiStopWhatsAppMessage(
     lifoPlanText += `• שלב העמסה #${s.loadingOrder}: *${s.client.name}* (${s.loadingPositionDescription})\n`;
   });
 
+  const durationSummaryText = timeEstimation
+    ? `• משך סבב משוער כולל: *${timeEstimation.totalRoundFormatted}* (יציאה: ${timeEstimation.departureTime} ⟵ חזרה: ${timeEstimation.estimatedReturnTime})
+• זמן נסיעה בדרכים: ~${timeEstimation.transitHoursFormatted} (לפי מהירות ממוצעת ${timeEstimation.transitSpeedKmH} קמ"ש)
+• זמן פריקה ושהייה באתרים (${timeEstimation.stopsCount} תחנות): ${timeEstimation.totalUnloadMinutes + timeEstimation.totalStopOverheadMinutes} דק'`
+    : `• זמן נסיעה משוער: ~${round.totalTravelMinutes} דק'
+• סה"כ זמן פריקה: ${round.totalUnloadMinutes} דקות`;
+
   return `🚛 *סבב חלוקה רב-יעדי — ח. סבן חומרי בניין (1994) בע"מ*
 📅 תאריך: ${dateStr}
 👤 *נהג:* ${truck.driverName} (${truck.name})
@@ -229,13 +242,152 @@ export function generateMultiStopWhatsAppMessage(
 ---------------------------------
 📊 *סיכום סבב חלוקה (${round.stops.length} יעדים):*
 • מרחק כולל: ${round.totalCircuitDistanceKm} ק"מ
-• זמן נסיעה משוער: ~${round.totalTravelMinutes} דק'
-• סה"כ זמן פריקה: ${round.totalUnloadMinutes} דקות
+${durationSummaryText}
 
 🧱 *הוראות העמסה במגרש בשיטת LIFO (Last-In First-Out):*
 ${lifoPlanText}
 ---------------------------------
-📋 *סדר התחנות בפריקה:*
+📋 *סדר התחנות ולו"ז בפריקה:*
 ${stopsText}
 _ח. סבן — נסיעה בטוחה ופריקה זהירה!_`;
+}
+
+export interface RoundScheduleLeg {
+  stopIndex: number;
+  clientName: string;
+  city: string;
+  address: string;
+  distanceFromPrevKm: number;
+  travelMinutesFromPrev: number;
+  arrivalTime: string;
+  unloadMinutes: number;
+  maneuveringMinutes: number;
+  totalStopMinutes: number;
+  departureTime: string;
+}
+
+export interface RoundTimeEstimation {
+  transitSpeedKmH: number;
+  stopOverheadMinutes: number;
+  depotPrepMinutes: number;
+  departureTime: string;
+  totalTransitMinutes: number;
+  totalUnloadMinutes: number;
+  totalStopOverheadMinutes: number;
+  totalRoundMinutes: number;
+  totalRoundFormatted: string;
+  transitHoursFormatted: string;
+  estimatedReturnTime: string;
+  stopsCount: number;
+  legs: RoundScheduleLeg[];
+  returnLegDistanceKm: number;
+  returnLegTravelMinutes: number;
+}
+
+export function formatMinutes(totalMins: number): string {
+  const rounded = Math.round(totalMins);
+  const hours = Math.floor(rounded / 60);
+  const mins = rounded % 60;
+  if (hours === 0) return `${mins} דק'`;
+  if (mins === 0) return `${hours} שעות`;
+  return `${hours} שעות ו-${mins} דק'`;
+}
+
+export function addMinutesToTimeString(timeStr: string, minutesToAdd: number): string {
+  const [hStr, mStr] = (timeStr || '07:30').split(':');
+  let totalMins = (parseInt(hStr, 10) || 0) * 60 + (parseInt(mStr, 10) || 0) + Math.round(minutesToAdd);
+  totalMins = ((totalMins % 1440) + 1440) % 1440;
+  const hours = Math.floor(totalMins / 60);
+  const mins = totalMins % 60;
+  return `${String(hours).padStart(2, '0')}:${String(mins).padStart(2, '0')}`;
+}
+
+/**
+ * Calculates accurate total time duration for the delivery round
+ * based on customizable average transit speed, stop overhead buffer,
+ * active unloading duration, and depot loading prep.
+ */
+export function calculateRoundTimeEstimation(
+  round: DeliveryRound,
+  truck: TruckConfig,
+  transitSpeedKmH: number = 42,
+  stopOverheadMinutes: number = 8,
+  depotPrepMinutes: number = 15,
+  departureTime: string = '07:30'
+): RoundTimeEstimation {
+  const legs: RoundScheduleLeg[] = [];
+  const safeSpeed = Math.max(15, Math.min(90, transitSpeedKmH));
+  const stopsCount = round.stops.length;
+  const totalStopOverheadMinutes = stopsCount * stopOverheadMinutes;
+
+  let currentTime = addMinutesToTimeString(departureTime, depotPrepMinutes);
+  let totalTransitMinutes = 0;
+  let totalUnloadMinutes = 0;
+
+  round.stops.forEach((stop) => {
+    const dist = stop.distanceFromPrevKm;
+    const legTransitMins = Math.max(2, Math.round((dist / safeSpeed) * 60));
+    totalTransitMinutes += legTransitMins;
+
+    const arrivalTime = addMinutesToTimeString(currentTime, legTransitMins);
+    const unloadMins =
+      truck.id === 'crane' ? stop.client.craneUnloadMinutes : stop.client.flatbedUnloadMinutes;
+    totalUnloadMinutes += unloadMins;
+
+    const totalAtStop = unloadMins + stopOverheadMinutes;
+    const legDepartureTime = addMinutesToTimeString(arrivalTime, totalAtStop);
+
+    legs.push({
+      stopIndex: stop.stopIndex,
+      clientName: stop.client.name,
+      city: stop.client.city,
+      address: stop.client.address,
+      distanceFromPrevKm: dist,
+      travelMinutesFromPrev: legTransitMins,
+      arrivalTime,
+      unloadMinutes: unloadMins,
+      maneuveringMinutes: stopOverheadMinutes,
+      totalStopMinutes: totalAtStop,
+      departureTime: legDepartureTime,
+    });
+
+    currentTime = legDepartureTime;
+  });
+
+  // Return leg from final stop to Depot
+  const lastStop = round.stops[round.stops.length - 1];
+  let returnLegDistanceKm = 0;
+  if (lastStop) {
+    const { distanceKm } = calculateDrivingDistanceKm(
+      lastStop.client.lat,
+      lastStop.client.lng,
+      DEPOT.lat,
+      DEPOT.lng
+    );
+    returnLegDistanceKm = distanceKm;
+  }
+  const returnLegTravelMinutes = Math.max(2, Math.round((returnLegDistanceKm / safeSpeed) * 60));
+  totalTransitMinutes += returnLegTravelMinutes;
+
+  const estimatedReturnTime = addMinutesToTimeString(currentTime, returnLegTravelMinutes);
+  const totalRoundMinutes =
+    depotPrepMinutes + totalTransitMinutes + totalUnloadMinutes + totalStopOverheadMinutes;
+
+  return {
+    transitSpeedKmH: safeSpeed,
+    stopOverheadMinutes,
+    depotPrepMinutes,
+    departureTime,
+    totalTransitMinutes,
+    totalUnloadMinutes,
+    totalStopOverheadMinutes,
+    totalRoundMinutes,
+    totalRoundFormatted: formatMinutes(totalRoundMinutes),
+    transitHoursFormatted: formatMinutes(totalTransitMinutes),
+    estimatedReturnTime,
+    stopsCount,
+    legs,
+    returnLegDistanceKm,
+    returnLegTravelMinutes,
+  };
 }

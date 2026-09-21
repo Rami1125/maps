@@ -5,6 +5,7 @@ import { DEPOT, calculateDrivingDistanceKm } from '../data/clients';
 export const GOOGLE_SHEET_ID = '1Ie7gKql_EDdrIN9HqunJc9Ey5k0WXXfPRxs0Vp1Bs2c';
 export const SHEET_TAB_NAME = 'מאגר_יעדים_וזמני_פריקה';
 export const MAKE_WEBHOOK_URL = 'https://hook.eu1.make.com/j1kfxfn5y4goe1lud3dk1phkw4bkjvyr';
+export const DEFAULT_APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbxVkGrH0dYFyFmj4k1S0-rloPJ0aeRkQTF8e41b_bvhRdchLO4MDhxTCr5dYXuTemzb/exec';
 
 export interface SyncStatus {
   source: 'google_sheets' | 'local_database';
@@ -12,6 +13,43 @@ export interface SyncStatus {
   count: number;
   message: string;
   isLive: boolean;
+  scriptError?: string;
+  scriptUrl?: string;
+}
+
+/**
+ * Parses GPS coordinates in the format "lat, lng" (e.g. "32.1848059787923, 34.86905067610266")
+ * Supports comma, space, or semicolon separation.
+ */
+export function parseGpsCoordinates(raw: any): { lat: number; lng: number } | null {
+  if (!raw) return null;
+  const str = String(raw).trim();
+  if (!str) return null;
+
+  // Clean parenthesis, brackets, quotes
+  const cleaned = str.replace(/[()[\]{}"'\\/]/g, '').trim();
+  const parts = cleaned
+    .split(/[,;\s]+/)
+    .map((p) => parseFloat(p.trim()))
+    .filter((n) => !isNaN(n));
+
+  if (parts.length >= 2) {
+    let lat = parts[0];
+    let lng = parts[1];
+
+    // Smart correction if someone entered lng, lat (Israel: lat is ~31.0 to 33.5, lng is ~34.2 to 35.9)
+    if (lat > 33.8 && lat < 36.5 && lng > 29.0 && lng < 33.8) {
+      const temp = lat;
+      lat = lng;
+      lng = temp;
+    }
+
+    if (lat >= -90 && lat <= 90 && lng >= -180 && lng <= 180 && (lat !== 0 || lng !== 0)) {
+      return { lat, lng };
+    }
+  }
+
+  return null;
 }
 
 /**
@@ -36,41 +74,54 @@ export function normalizeDistrict(rawDistrict: string, city: string): District {
 
 /**
  * Fetches clients from Google Sheets (tab: מאגר_יעדים_וזמני_פריקה).
- * Falls back to the preloaded 63 clients if offline or API is inaccessible.
+ * Uses Google Apps Script Web App as primary or GViz as fallback,
+ * and falls back to the preloaded 63 clients if offline or API is inaccessible.
  */
 export async function fetchClientsFromSheets(
   customScriptUrl?: string
 ): Promise<{ clients: ClientSite[]; status: SyncStatus }> {
-  // If custom Google Apps Script Web App URL is provided
-  if (customScriptUrl && customScriptUrl.trim()) {
+  const targetScriptUrl = (customScriptUrl && customScriptUrl.trim()) ? customScriptUrl.trim() : DEFAULT_APPS_SCRIPT_URL;
+  let scriptErrorMessage: string | undefined;
+
+  // 1. Attempt Google Apps Script Web App
+  if (targetScriptUrl) {
     try {
-      const resp = await fetch(customScriptUrl, {
+      const resp = await fetch(targetScriptUrl, {
         method: 'GET',
-        headers: { 'Accept': 'application/json' },
+        headers: { Accept: 'application/json' },
       });
       if (resp.ok) {
         const json = await resp.json();
-        const rows = Array.isArray(json) ? json : json.data || json.records;
-        if (Array.isArray(rows) && rows.length > 0) {
-          const parsed = parseRawSheetRows(rows);
-          return {
-            clients: parsed,
-            status: {
-              source: 'google_sheets',
-              syncedAt: new Date(),
-              count: parsed.length,
-              message: `סונכרן בהצלחה דרך Google Apps Script Web App (${parsed.length} יעדים)`,
-              isLive: true,
-            },
-          };
+        if (json && json.error) {
+          scriptErrorMessage = String(json.error);
+        } else {
+          const rawList = Array.isArray(json)
+            ? json
+            : json.data || json.records || json.clients || json.rows || json.values;
+          if (Array.isArray(rawList) && rawList.length > 0) {
+            const parsed = parseRawSheetRows(rawList);
+            if (parsed.length > 0) {
+              return {
+                clients: parsed,
+                status: {
+                  source: 'google_sheets',
+                  syncedAt: new Date(),
+                  count: parsed.length,
+                  message: `סונכרן בהצלחה דרך Google Apps Script Web App (${parsed.length} יעדים)`,
+                  isLive: true,
+                  scriptUrl: targetScriptUrl,
+                },
+              };
+            }
+          }
         }
       }
-    } catch {
-      // Continue to try public gviz endpoint
+    } catch (e: any) {
+      scriptErrorMessage = e?.message || 'שגיאת רשת בחיבור ל-Google Apps Script';
     }
   }
 
-  // Attempt Google Sheets Visualization API (Public / Domain Shared)
+  // 2. Attempt Google Sheets Visualization API (Public / Domain Shared)
   try {
     const gvizUrl = `https://docs.google.com/spreadsheets/d/${GOOGLE_SHEET_ID}/gviz/tq?tqx=out:json&sheet=${encodeURIComponent(
       SHEET_TAB_NAME
@@ -100,6 +151,7 @@ export async function fetchClientsFromSheets(
                 count: parsedClients.length,
                 message: `סונכרן ישירות עם Google Sheets (${parsedClients.length} יעדים מטאב "${SHEET_TAB_NAME}")`,
                 isLive: true,
+                scriptUrl: targetScriptUrl,
               },
             };
           }
@@ -110,15 +162,21 @@ export async function fetchClientsFromSheets(
     // Network / CORS / Private Sheet error - fallback gracefully
   }
 
-  // Fallback to local 63 historical clients
+  // 3. Fallback to local 63 historical clients
+  const fallbackMessage = scriptErrorMessage
+    ? `Apps Script מחובר אך החזיר: "${scriptErrorMessage}". טעון מאגר 63 יעדים היסטוריים מדויקים.`
+    : `מאגר מקומי טעון (63 לקוחות היסטוריים ומדויקים של ח. סבן חומרי בניין)`;
+
   return {
     clients: HISTORICAL_63_CLIENTS,
     status: {
       source: 'local_database',
       syncedAt: new Date(),
       count: HISTORICAL_63_CLIENTS.length,
-      message: `מאגר מקומי טעון (63 לקוחות היסטוריים ומדויקים של ח. סבן חומרי בניין)`,
+      message: fallbackMessage,
       isLive: false,
+      scriptError: scriptErrorMessage,
+      scriptUrl: targetScriptUrl,
     },
   };
 }
@@ -129,6 +187,17 @@ export async function fetchClientsFromSheets(
 function parseGvizTable(table: { cols: { label?: string }[]; rows: { c: ({ v?: any; f?: string } | null)[] }[] }): ClientSite[] {
   const clients: ClientSite[] = [];
   const cols = table.cols.map((col) => (col.label || '').toLowerCase().trim());
+
+  // Find column index for GPS Coordinates (Column P is index 15 in standard sheet)
+  const gpsColIndex = cols.findIndex((col) => {
+    return (
+      col.includes('קואורדינטות') ||
+      col.includes('gps') ||
+      col.includes('lat') ||
+      col.includes('lng') ||
+      col.includes('נ.צ')
+    );
+  });
 
   table.rows.forEach((row, idx) => {
     const cells = row.c || [];
@@ -161,13 +230,17 @@ function parseGvizTable(table: { cols: { label?: string }[]; rows: { c: ({ v?: a
     const observations = getVal(13) || 'פריקה רגילה באתר';
     const paymentTerms = getVal(14) || (status === 'problematic' ? 'מזומן / אשראי מראש' : 'שוטף + 30');
 
+    // Read Column P (index 15) or detected GPS column
+    const rawGpsValue = gpsColIndex !== -1 ? getVal(gpsColIndex) : (getVal(15) || '');
+    const exactGps = parseGpsCoordinates(rawGpsValue);
+
     // Approximate coordinates if not in sheet by mapping city or fallback
     const fallbackClient = HISTORICAL_63_CLIENTS.find(
       (c) => c.comaxId === comaxId || c.name === name || c.address.includes(address)
     );
 
-    const lat = fallbackClient ? fallbackClient.lat : DEPOT.lat + (Math.random() - 0.5) * 0.1;
-    const lng = fallbackClient ? fallbackClient.lng : DEPOT.lng + (Math.random() - 0.5) * 0.1;
+    const lat = exactGps ? exactGps.lat : (fallbackClient ? fallbackClient.lat : DEPOT.lat + (Math.random() - 0.5) * 0.1);
+    const lng = exactGps ? exactGps.lng : (fallbackClient ? fallbackClient.lng : DEPOT.lng + (Math.random() - 0.5) * 0.1);
     const { distanceKm } = calculateDrivingDistanceKm(DEPOT.lat, DEPOT.lng, lat, lng);
 
     clients.push({
@@ -186,11 +259,14 @@ function parseGvizTable(table: { cols: { label?: string }[]; rows: { c: ({ v?: a
       flatbedBarcode,
       craneUnloadMinutes,
       flatbedUnloadMinutes,
-      distanceKm: rawDistance || distanceKm,
+      distanceKm: exactGps ? distanceKm : (rawDistance || distanceKm),
       paymentTerms,
       surchargePercent: status === 'problematic' ? 10 : 0,
       basePriceNis: 480,
       observations,
+      hasExactGps: !!exactGps,
+      gpsCoordinates: exactGps ? `${exactGps.lat.toFixed(7)}, ${exactGps.lng.toFixed(7)}` : undefined,
+      gpsSource: exactGps ? 'sheet_col_p' : undefined,
     });
   });
 
@@ -201,7 +277,46 @@ function parseGvizTable(table: { cols: { label?: string }[]; rows: { c: ({ v?: a
  * Parses raw JSON rows from Google Apps Script endpoint
  */
 function parseRawSheetRows(rows: any[]): ClientSite[] {
-  return rows.map((r, idx) => {
+  if (!Array.isArray(rows) || rows.length === 0) return [];
+
+  // If rows is a 2D array (e.g. getDataRange().getValues()), convert to object array
+  let itemRows = rows;
+  if (Array.isArray(rows[0])) {
+    const headers = rows[0].map((h: any) => String(h || '').trim());
+    const converted: any[] = [];
+    for (let i = 1; i < rows.length; i++) {
+      const row = rows[i];
+      if (!Array.isArray(row) || row.length === 0) continue;
+      // Skip totally blank rows
+      if (!row[0] && !row[1] && !row[2]) continue;
+
+      const obj: Record<string, any> = {};
+      headers.forEach((hdr: string, colIdx: number) => {
+        if (hdr) obj[hdr] = row[colIdx];
+      });
+      // Also map by column index as fallbacks
+      obj.comaxId = row[0] ?? obj.comaxId;
+      obj.name = row[1] ?? obj.name;
+      obj.district = row[2] ?? obj.district;
+      obj.address = row[3] ?? obj.address;
+      obj.city = row[4] ?? obj.city;
+      obj.contactName = row[5] ?? obj.contactName;
+      obj.contactPhone = row[6] ?? obj.contactPhone;
+      obj.craneBarcode = row[7] ?? obj.craneBarcode;
+      obj.flatbedBarcode = row[8] ?? obj.flatbedBarcode;
+      obj.craneUnloadMinutes = row[9] ?? obj.craneUnloadMinutes;
+      obj.flatbedUnloadMinutes = row[10] ?? obj.flatbedUnloadMinutes;
+      obj.status = row[11] ?? obj.status;
+      obj.distanceKm = row[12] ?? obj.distanceKm;
+      obj.observations = row[13] ?? obj.observations;
+      obj.paymentTerms = row[14] ?? obj.paymentTerms;
+      obj.P = row[15] ?? obj['קואורדינטות GPS (Lat, Lng)'];
+      converted.push(obj);
+    }
+    itemRows = converted;
+  }
+
+  return itemRows.map((r, idx) => {
     const comaxId = String(r['קוד קומקס'] || r.comaxId || r['Customer ID'] || `200${idx}`);
     const name = String(r['שם לקוח'] || r.name || r['Client Name'] || `לקוח ${comaxId}`);
     const address = String(r['כתובת'] || r.address || 'רחוב כללי');
@@ -218,8 +333,22 @@ function parseRawSheetRows(rows: any[]): ClientSite[] {
     const observations = String(r['הערות שטח'] || r.observations || 'פריקה רגילה');
     const paymentTerms = String(r['תנאי תשלום'] || r.paymentTerms || (status === 'problematic' ? 'מזומן / אשראי מראש' : 'שוטף + 30'));
 
-    const lat = Number(r.lat) || DEPOT.lat + (Math.random() - 0.5) * 0.08;
-    const lng = Number(r.lng) || DEPOT.lng + (Math.random() - 0.5) * 0.08;
+    // Check Column P GPS
+    const rawGps =
+      r['קואורדינטות GPS (Lat, Lng)'] ||
+      r['קואורדינטות GPS'] ||
+      r['קואורדינטות'] ||
+      r['GPS'] ||
+      r['gps'] ||
+      r['coords'] ||
+      r['latLng'] ||
+      r['lat_lng'] ||
+      r['P'] ||
+      (r.lat && r.lng ? `${r.lat}, ${r.lng}` : null);
+
+    const exactGps = parseGpsCoordinates(rawGps);
+    const lat = exactGps ? exactGps.lat : (Number(r.lat) || DEPOT.lat + (Math.random() - 0.5) * 0.08);
+    const lng = exactGps ? exactGps.lng : (Number(r.lng) || DEPOT.lng + (Math.random() - 0.5) * 0.08);
     const { distanceKm } = calculateDrivingDistanceKm(DEPOT.lat, DEPOT.lng, lat, lng);
 
     return {
@@ -243,6 +372,9 @@ function parseRawSheetRows(rows: any[]): ClientSite[] {
       surchargePercent: status === 'problematic' ? 10 : 0,
       basePriceNis: 480,
       observations,
+      hasExactGps: !!exactGps,
+      gpsCoordinates: exactGps ? `${exactGps.lat.toFixed(7)}, ${exactGps.lng.toFixed(7)}` : undefined,
+      gpsSource: exactGps ? 'sheet_col_p' : undefined,
     };
   });
 }

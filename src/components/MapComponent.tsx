@@ -13,6 +13,8 @@ interface MapComponentProps {
   deliveryRound?: DeliveryRound | null;
   isRoutePlannerActive?: boolean;
   onMapClick?: (lat: number, lng: number) => void;
+  onUpdateClientCoordinates?: (clientId: string, lat: number, lng: number) => void;
+  isPinAdjustMode?: boolean;
 }
 
 export const MapComponent: React.FC<MapComponentProps> = ({
@@ -26,6 +28,8 @@ export const MapComponent: React.FC<MapComponentProps> = ({
   deliveryRound,
   isRoutePlannerActive = false,
   onMapClick,
+  onUpdateClientCoordinates,
+  isPinAdjustMode = false,
 }) => {
   const mapContainerRef = useRef<HTMLDivElement>(null);
   const mapInstanceRef = useRef<L.Map | null>(null);
@@ -49,19 +53,33 @@ export const MapComponent: React.FC<MapComponentProps> = ({
     // Add zoom control at bottom-left
     L.control.zoom({ position: 'bottomleft' }).addTo(map);
 
-    if (onMapClick) {
-      map.on('click', (e: L.LeafletMouseEvent) => {
-        onMapClick(e.latlng.lat, e.latlng.lng);
-      });
-    }
-
     mapInstanceRef.current = map;
 
     return () => {
       map.remove();
       mapInstanceRef.current = null;
     };
-  }, [depot.lat, depot.lng, onMapClick]);
+  }, [depot.lat, depot.lng]);
+
+  // Handle Map Click & Pin Adjustment Mode
+  useEffect(() => {
+    const map = mapInstanceRef.current;
+    if (!map) return;
+
+    const handleMapClick = (e: L.LeafletMouseEvent) => {
+      if (onMapClick) {
+        onMapClick(e.latlng.lat, e.latlng.lng);
+      }
+      if (isPinAdjustMode && selectedClient && onUpdateClientCoordinates) {
+        onUpdateClientCoordinates(selectedClient.id, e.latlng.lat, e.latlng.lng);
+      }
+    };
+
+    map.on('click', handleMapClick);
+    return () => {
+      map.off('click', handleMapClick);
+    };
+  }, [onMapClick, isPinAdjustMode, selectedClient, onUpdateClientCoordinates]);
 
   // Update Tile Layer based on layer type
   useEffect(() => {
@@ -169,39 +187,72 @@ export const MapComponent: React.FC<MapComponentProps> = ({
 
         const iconEmoji = isProblematic ? '⚠️' : '📍';
         const glowRing = isSelected
-          ? '<div class="absolute -inset-2 rounded-full bg-amber-400 opacity-70 animate-ping"></div>'
+          ? '<div class="absolute -inset-2.5 rounded-full bg-amber-400 opacity-80 animate-ping"></div>'
           : '';
         const ringBorder = isSelected
-          ? 'ring-4 ring-amber-400 ring-offset-2 scale-110'
+          ? 'ring-4 ring-amber-400 ring-offset-2 scale-115 shadow-2xl'
           : 'hover:scale-110';
+
+        // Precise GPS Badge on Marker
+        const gpsIndicator = client.hasExactGps
+          ? '<span class="absolute -top-1.5 -right-1.5 w-4 h-4 bg-blue-600 text-white rounded-full flex items-center justify-center text-[9px] border border-white font-black shadow-sm" title="מיקום GPS מדויק 100%">🎯</span>'
+          : '';
+
+        const dragLabel = isSelected
+          ? `<div class="mt-1 bg-amber-400 text-neutral-950 font-black text-[10px] px-2 py-0.5 rounded-full shadow-lg border border-amber-600 flex items-center gap-1 cursor-grab active:cursor-grabbing whitespace-nowrap animate-bounce">
+              <span>🎯 גרור לשער האתר</span>
+            </div>`
+          : `<div class="mt-1 bg-white/95 backdrop-blur-xs text-neutral-800 font-bold text-[10px] px-1.5 py-0.5 rounded shadow border border-neutral-200 max-w-[110px] truncate text-center pointer-events-none">
+              ${client.name.split('/')[0]}
+            </div>`;
 
         markerHtml = `
           <div class="relative flex flex-col items-center justify-center cursor-pointer transition-all duration-200">
             ${glowRing}
-            <div class="w-8 h-8 rounded-full ${bgClass} ${ringBorder} text-white shadow-lg flex items-center justify-center text-xs font-black border-2 transition-transform">
+            <div class="relative w-8 h-8 rounded-full ${bgClass} ${ringBorder} text-white shadow-lg flex items-center justify-center text-xs font-black border-2 transition-transform">
               ${iconEmoji}
+              ${gpsIndicator}
             </div>
-            <div class="mt-1 bg-white/95 backdrop-blur-xs text-neutral-800 font-bold text-[10px] px-1.5 py-0.5 rounded shadow border border-neutral-200 max-w-[110px] truncate text-center pointer-events-none">
-              ${client.name.split('/')[0]}
-            </div>
+            ${dragLabel}
           </div>
         `;
       }
 
+      const isDraggable = isSelected && !routeStop;
+
       const customIcon = L.divIcon({
         className: 'custom-client-pin',
         html: markerHtml,
-        iconSize: [36, 48],
-        iconAnchor: [18, 20],
+        iconSize: [42, 54],
+        iconAnchor: [21, 24],
       });
 
-      const marker = L.marker([client.lat, client.lng], { icon: customIcon })
+      const marker = L.marker([client.lat, client.lng], {
+        icon: customIcon,
+        draggable: isDraggable,
+        autoPan: true,
+      })
         .addTo(map)
         .on('click', () => {
           onSelectClient(client);
         });
 
+      if (isDraggable && onUpdateClientCoordinates) {
+        marker.on('dragend', (event: L.LeafletEvent) => {
+          const latLng = (event.target as L.Marker).getLatLng();
+          onUpdateClientCoordinates(client.id, latLng.lat, latLng.lng);
+        });
+      }
+
       // Hover tooltip
+      const gpsSourceText = client.gpsSource === 'sheet_col_p'
+        ? '🎯 GPS מדויק 100% מעמודה P'
+        : client.gpsSource === 'map_drag'
+        ? '📍 נ.צ עודכן ידנית במפה'
+        : client.hasExactGps
+        ? '🎯 נ.צ מדויק'
+        : '📍 מיקום משוער (ניתן לגרור לשער)';
+
       marker.bindTooltip(`
         <div class="p-1.5 text-right dir-rtl font-['Assistant']">
           <div class="font-bold text-xs text-neutral-900">${client.name}</div>
@@ -210,12 +261,16 @@ export const MapComponent: React.FC<MapComponentProps> = ({
           <div class="mt-0.5 text-[10px] font-bold ${isProblematic ? 'text-rose-600' : 'text-emerald-600'}">
             ${isProblematic ? '⚠️ אתר בעייתי (+10% סיכון)' : '🟢 אתר תקין (שוטף)'}
           </div>
+          <div class="mt-1 text-[10px] font-mono font-bold text-blue-800 bg-blue-50 px-1.5 py-0.5 rounded border border-blue-200 inline-block">
+            ${gpsSourceText}: ${client.lat.toFixed(6)}, ${client.lng.toFixed(6)}
+          </div>
+          ${isSelected ? '<div class="text-[9px] text-amber-700 font-bold mt-0.5">💡 גרור סיכה זו במפה לשער המדויק</div>' : ''}
         </div>
       `, { direction: 'top', offset: [0, -15], opacity: 0.95 });
 
       markersRef.current[client.id] = marker;
     });
-  }, [clients, selectedClient, deliveryRound, onSelectClient]);
+  }, [clients, selectedClient, deliveryRound, onSelectClient, onUpdateClientCoordinates]);
 
   // Multi-Stop Circuit Polyline when in Route Planner mode
   useEffect(() => {

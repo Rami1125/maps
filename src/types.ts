@@ -27,6 +27,9 @@ export interface ClientSite {
   riskDetails?: string;
   preferredDeliveryHours?: string;
   isCustomGeocoded?: boolean;
+  hasExactGps?: boolean;
+  gpsCoordinates?: string;
+  gpsSource?: 'sheet_col_p' | 'map_drag' | 'geocoded' | 'estimated';
 }
 
 export type TruckType = 'crane' | 'flatbed';

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import {
   X,
   ArrowUpDown,
@@ -17,12 +17,19 @@ import {
   TrendingDown,
   Copy,
   ExternalLink,
+  Gauge,
+  Timer,
+  Calendar,
+  SlidersHorizontal,
 } from 'lucide-react';
 import { ClientSite, DeliveryRound, TruckConfig } from '../types';
 import {
   optimizeStopsSequence,
   calculateRoundSavings,
   generateMultiStopWhatsAppMessage,
+  calculateRoundTimeEstimation,
+  formatMinutes,
+  RoundTimeEstimation,
 } from '../utils/routePlanner';
 import { dispatchToMakeWebhook } from '../services/sheetsService';
 
@@ -56,7 +63,26 @@ export const RoutePlanner: React.FC<RoutePlannerProps> = ({
   const [dispatchStatus, setDispatchStatus] = useState<string | null>(null);
   const [isDispatching, setIsDispatching] = useState(false);
   const [copied, setCopied] = useState(false);
-  const [activeTab, setActiveTab] = useState<'stops' | 'lifo' | 'pricing'>('stops');
+  const [activeTab, setActiveTab] = useState<'stops' | 'time' | 'lifo' | 'pricing'>('stops');
+
+  // Transit Speed & Duration Estimation Parameters
+  const [transitSpeedKmH, setTransitSpeedKmH] = useState<number>(42);
+  const [stopOverheadMinutes, setStopOverheadMinutes] = useState<number>(8);
+  const [depotPrepMinutes, setDepotPrepMinutes] = useState<number>(15);
+  const [departureTime, setDepartureTime] = useState<string>('07:30');
+
+  // Dynamic time estimation calculated from route distance, speed, and stops count
+  const timeEstimation: RoundTimeEstimation | null = useMemo(() => {
+    if (!deliveryRound || selectedStops.length === 0) return null;
+    return calculateRoundTimeEstimation(
+      deliveryRound,
+      truck,
+      transitSpeedKmH,
+      stopOverheadMinutes,
+      depotPrepMinutes,
+      departureTime
+    );
+  }, [deliveryRound, selectedStops.length, truck, transitSpeedKmH, stopOverheadMinutes, depotPrepMinutes, departureTime]);
 
   // Filter clients not yet in route
   const availableClients = allClients.filter(
@@ -87,6 +113,16 @@ export const RoutePlanner: React.FC<RoutePlannerProps> = ({
     ? calculateRoundSavings(selectedStops, deliveryRound, truck, fuelRateNis)
     : { savedKm: 0, savedFuelNis: 0, percentSaved: 0 };
 
+  // Set current time rounded to next 5 minutes
+  const handleSetCurrentTime = () => {
+    const now = new Date();
+    const h = now.getHours();
+    const m = Math.ceil(now.getMinutes() / 5) * 5;
+    const normH = m >= 60 ? (h + 1) % 24 : h;
+    const normM = m >= 60 ? 0 : m;
+    setDepartureTime(`${String(normH).padStart(2, '0')}:${String(normM).padStart(2, '0')}`);
+  };
+
   // Dispatch to Make.com Webhook + WhatsApp
   const handleDispatchRound = async () => {
     if (!deliveryRound || selectedStops.length === 0) return;
@@ -101,8 +137,14 @@ export const RoutePlanner: React.FC<RoutePlannerProps> = ({
       driverName: truck.driverName,
       totalStops: deliveryRound.stops.length,
       totalCircuitKm: deliveryRound.totalCircuitDistanceKm,
-      totalTravelMinutes: deliveryRound.totalTravelMinutes,
+      totalTravelMinutes: timeEstimation?.totalTransitMinutes ?? deliveryRound.totalTravelMinutes,
       totalUnloadMinutes: deliveryRound.totalUnloadMinutes,
+      totalStopOverheadMinutes: timeEstimation?.totalStopOverheadMinutes ?? (selectedStops.length * stopOverheadMinutes),
+      totalEstimatedRoundMinutes: timeEstimation?.totalRoundMinutes,
+      totalEstimatedRoundFormatted: timeEstimation?.totalRoundFormatted,
+      averageTransitSpeedKmH: transitSpeedKmH,
+      departureTime: departureTime,
+      estimatedReturnTime: timeEstimation?.estimatedReturnTime,
       stops: deliveryRound.stops.map((s) => ({
         stopIndex: s.stopIndex,
         clientName: s.client.name,
@@ -128,7 +170,12 @@ export const RoutePlanner: React.FC<RoutePlannerProps> = ({
 
   const handleCopyWhatsAppText = () => {
     if (!deliveryRound) return;
-    const text = generateMultiStopWhatsAppMessage(deliveryRound, truck, fuelRateNis);
+    const text = generateMultiStopWhatsAppMessage(
+      deliveryRound,
+      truck,
+      fuelRateNis,
+      timeEstimation || undefined
+    );
     navigator.clipboard.writeText(text);
     setCopied(true);
     setTimeout(() => setCopied(false), 2200);
@@ -136,7 +183,12 @@ export const RoutePlanner: React.FC<RoutePlannerProps> = ({
 
   const handleOpenWhatsAppDirect = () => {
     if (!deliveryRound) return;
-    const text = generateMultiStopWhatsAppMessage(deliveryRound, truck, fuelRateNis);
+    const text = generateMultiStopWhatsAppMessage(
+      deliveryRound,
+      truck,
+      fuelRateNis,
+      timeEstimation || undefined
+    );
     const encoded = encodeURIComponent(text);
     window.open(`https://api.whatsapp.com/send?text=${encoded}`, '_blank');
   };
@@ -168,42 +220,81 @@ export const RoutePlanner: React.FC<RoutePlannerProps> = ({
         </button>
       </div>
 
+      {/* Quick Summary Pill: Total Duration & Speed */}
+      {timeEstimation && selectedStops.length > 0 && (
+        <div className="px-4 py-2 bg-gradient-to-r from-neutral-900 via-neutral-950 to-neutral-900 text-white border-t border-neutral-800 flex items-center justify-between text-xs">
+          <div className="flex items-center gap-2">
+            <Timer className="w-4 h-4 text-emerald-400 shrink-0" />
+            <span className="text-neutral-300 font-medium">משך סבב משוער:</span>
+            <strong className="text-emerald-400 font-black text-sm">{timeEstimation.totalRoundFormatted}</strong>
+          </div>
+          <div className="flex items-center gap-2 text-[11px]">
+            <span className="bg-neutral-800 px-2 py-0.5 rounded text-neutral-200 font-bold border border-neutral-700">
+              {timeEstimation.departureTime} ⟵ {timeEstimation.estimatedReturnTime}
+            </span>
+            <span className="bg-blue-900/80 text-blue-300 px-2 py-0.5 rounded font-bold border border-blue-700/60">
+              {timeEstimation.transitSpeedKmH} קמ"ש
+            </span>
+          </div>
+        </div>
+      )}
+
       {/* Tabs */}
-      <div className="px-4 py-2 bg-neutral-100 border-b border-neutral-200 flex gap-2">
+      <div className="px-3 py-2 bg-neutral-100 border-b border-neutral-200 flex gap-1.5 overflow-x-auto">
         <button
           type="button"
           onClick={() => setActiveTab('stops')}
-          className={`flex-1 py-1.5 px-3 rounded-xl font-bold text-xs flex items-center justify-center gap-1.5 transition-all cursor-pointer ${
+          className={`py-1.5 px-2.5 rounded-xl font-bold text-xs flex items-center justify-center gap-1 transition-all cursor-pointer whitespace-nowrap ${
             activeTab === 'stops'
               ? 'bg-white text-blue-700 shadow-sm border border-neutral-200'
               : 'text-neutral-600 hover:bg-neutral-200/60'
           }`}
         >
-          <span>🎯 תחנות במסלול ({selectedStops.length})</span>
+          <span>🎯 תחנות ({selectedStops.length})</span>
+        </button>
+
+        <button
+          type="button"
+          onClick={() => setActiveTab('time')}
+          className={`py-1.5 px-2.5 rounded-xl font-bold text-xs flex items-center justify-center gap-1.5 transition-all cursor-pointer whitespace-nowrap ${
+            activeTab === 'time'
+              ? 'bg-blue-600 text-white font-black shadow-sm'
+              : 'text-blue-900 bg-blue-50 hover:bg-blue-100/70 border border-blue-200/60'
+          }`}
+        >
+          <Clock className="w-3.5 h-3.5" />
+          <span>משך סבב ולו"ז</span>
+          {timeEstimation && (
+            <span className={`text-[10px] px-1.5 py-0.2 rounded-full font-extrabold ${
+              activeTab === 'time' ? 'bg-white/20 text-white' : 'bg-blue-200 text-blue-950'
+            }`}>
+              {timeEstimation.totalRoundFormatted}
+            </span>
+          )}
         </button>
 
         <button
           type="button"
           onClick={() => setActiveTab('lifo')}
-          className={`flex-1 py-1.5 px-3 rounded-xl font-bold text-xs flex items-center justify-center gap-1.5 transition-all cursor-pointer ${
+          className={`py-1.5 px-2.5 rounded-xl font-bold text-xs flex items-center justify-center gap-1 transition-all cursor-pointer whitespace-nowrap ${
             activeTab === 'lifo'
               ? 'bg-amber-500 text-neutral-950 font-black shadow-sm'
               : 'text-neutral-600 hover:bg-neutral-200/60'
           }`}
         >
-          <span>🧱 סדר העמסה LIFO</span>
+          <span>🧱 LIFO</span>
         </button>
 
         <button
           type="button"
           onClick={() => setActiveTab('pricing')}
-          className={`flex-1 py-1.5 px-3 rounded-xl font-bold text-xs flex items-center justify-center gap-1.5 transition-all cursor-pointer ${
+          className={`py-1.5 px-2.5 rounded-xl font-bold text-xs flex items-center justify-center gap-1 transition-all cursor-pointer whitespace-nowrap ${
             activeTab === 'pricing'
               ? 'bg-white text-emerald-700 shadow-sm border border-neutral-200'
               : 'text-neutral-600 hover:bg-neutral-200/60'
           }`}
         >
-          <span>💰 עלויות ורווחיות</span>
+          <span>💰 עלויות</span>
         </button>
       </div>
 
@@ -264,7 +355,7 @@ export const RoutePlanner: React.FC<RoutePlannerProps> = ({
                     </span>
                     <div>
                       <span className="font-extrabold text-neutral-900">מוצא: מגרש סבן (הוד השרון)</span>
-                      <p className="text-[10px] text-neutral-500">החרש 10, אזה"ת נווה נאמן</p>
+                      <p className="text-[10px] text-neutral-500">החרש 10, אזה"ת נווה נאמן • יציאה: {timeEstimation?.departureTime || '07:30'}</p>
                     </div>
                   </div>
                   <span className="text-[10px] font-bold text-neutral-600 bg-white px-2 py-0.5 rounded border border-neutral-200">
@@ -276,6 +367,7 @@ export const RoutePlanner: React.FC<RoutePlannerProps> = ({
                 {deliveryRound?.stops.map((stop, idx) => {
                   const isFirst = idx === 0;
                   const isLast = idx === selectedStops.length - 1;
+                  const legEst = timeEstimation?.legs.find((l) => l.stopIndex === stop.stopIndex);
 
                   return (
                     <div
@@ -328,11 +420,25 @@ export const RoutePlanner: React.FC<RoutePlannerProps> = ({
                         </div>
                       </div>
 
-                      {/* Leg Specs & LIFO badge */}
+                      {/* Leg Specs, Dynamic Travel Time & LIFO badge */}
                       <div className="flex flex-wrap items-center justify-between gap-1.5 pt-1 border-t border-neutral-100 text-[10px]">
-                        <span className="text-neutral-500">
-                          מרחק מהתחנה הקודמת: <strong className="text-neutral-800">{stop.distanceFromPrevKm} ק"מ</strong> (~{stop.travelMinutesFromPrev} דק')
-                        </span>
+                        <div className="flex items-center gap-1.5 text-neutral-500">
+                          <span>
+                            מרחק: <strong className="text-neutral-800">{stop.distanceFromPrevKm} ק"מ</strong>
+                          </span>
+                          <span>•</span>
+                          <span>
+                            נסיעה: <strong className="text-neutral-800">~{legEst?.travelMinutesFromPrev ?? stop.travelMinutesFromPrev} דק'</strong>
+                          </span>
+                          {legEst && (
+                            <>
+                              <span>•</span>
+                              <span className="text-blue-700 font-bold bg-blue-50 px-1.5 py-0.5 rounded">
+                                הגעה: {legEst.arrivalTime}
+                              </span>
+                            </>
+                          )}
+                        </div>
 
                         <span className="bg-amber-100 text-amber-900 font-bold px-1.5 py-0.5 rounded text-[9px]">
                           LIFO העמסה #{stop.loadingOrder}
@@ -349,7 +455,14 @@ export const RoutePlanner: React.FC<RoutePlannerProps> = ({
                       <span className="w-6 h-6 rounded-lg bg-neutral-900 text-emerald-400 flex items-center justify-center font-black text-xs">
                         🏁
                       </span>
-                      <span className="font-extrabold text-neutral-900">חזרה לבסיס סבן (סיום סבב)</span>
+                      <div>
+                        <span className="font-extrabold text-neutral-900">חזרה לבסיס סבן (סיום סבב)</span>
+                        {timeEstimation && (
+                          <p className="text-[10px] text-neutral-500">
+                            מרחק: {timeEstimation.returnLegDistanceKm} ק"מ • הגעה משוערת: {timeEstimation.estimatedReturnTime}
+                          </p>
+                        )}
+                      </div>
                     </div>
                     <span className="text-[10px] font-bold text-neutral-600 bg-white px-2 py-0.5 rounded border border-neutral-200">
                       סגירת מעגל
@@ -421,7 +534,307 @@ export const RoutePlanner: React.FC<RoutePlannerProps> = ({
           </div>
         )}
 
-        {/* Tab 2: LIFO Loading Assistant */}
+        {/* Tab 2: Duration Estimation & Schedule */}
+        {activeTab === 'time' && (
+          <div className="space-y-3.5">
+            {!timeEstimation ? (
+              <div className="p-8 text-center bg-neutral-50 rounded-2xl border border-neutral-200">
+                <Clock className="w-10 h-10 text-neutral-300 mx-auto mb-2" />
+                <p className="text-xs text-neutral-600 font-bold">
+                  הוסף לפחות תחנה אחת כדי לחשב אומדן משך סבב ולוח זמנים.
+                </p>
+              </div>
+            ) : (
+              <>
+                {/* 1. Total Duration Hero Banner & Breakdown */}
+                <div className="p-4 bg-gradient-to-br from-neutral-900 via-neutral-950 to-neutral-900 text-white rounded-2xl border border-neutral-800 shadow-md space-y-3">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <span className="text-[11px] text-emerald-400 font-bold flex items-center gap-1.5">
+                        <Timer className="w-3.5 h-3.5" />
+                        אומדן משך סבב כולל (מקצה לקצה):
+                      </span>
+                      <h3 className="text-2xl font-black text-white mt-0.5 tracking-tight">
+                        {timeEstimation.totalRoundFormatted}
+                      </h3>
+                    </div>
+
+                    <div className="text-left">
+                      <span className="text-[10px] text-neutral-400 block font-medium">חלון זמנים משוער:</span>
+                      <div className="font-mono font-black text-sm text-amber-300 mt-0.5">
+                        {timeEstimation.departureTime} ⟵ {timeEstimation.estimatedReturnTime}
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Visual Duration Distribution Bar */}
+                  <div className="space-y-1.5 pt-1">
+                    <div className="h-3 w-full bg-neutral-800 rounded-full overflow-hidden flex">
+                      <div
+                        style={{ width: `${Math.max(8, (timeEstimation.totalTransitMinutes / timeEstimation.totalRoundMinutes) * 100)}%` }}
+                        className="bg-blue-500 h-full transition-all"
+                        title={`נסיעה בדרכים: ${timeEstimation.totalTransitMinutes} דק'`}
+                      />
+                      <div
+                        style={{ width: `${Math.max(8, (timeEstimation.totalUnloadMinutes / timeEstimation.totalRoundMinutes) * 100)}%` }}
+                        className="bg-purple-500 h-full transition-all"
+                        title={`זמן פריקה נטו: ${timeEstimation.totalUnloadMinutes} דק'`}
+                      />
+                      <div
+                        style={{ width: `${Math.max(6, (timeEstimation.totalStopOverheadMinutes / timeEstimation.totalRoundMinutes) * 100)}%` }}
+                        className="bg-amber-400 h-full transition-all"
+                        title={`שערים ותמרון (${selectedStops.length} תחנות): ${timeEstimation.totalStopOverheadMinutes} דק'`}
+                      />
+                      <div
+                        style={{ width: `${Math.max(4, (timeEstimation.depotPrepMinutes / timeEstimation.totalRoundMinutes) * 100)}%` }}
+                        className="bg-emerald-400 h-full transition-all"
+                        title={`העמסה במגרש: ${timeEstimation.depotPrepMinutes} דק'`}
+                      />
+                    </div>
+
+                    {/* Legend */}
+                    <div className="flex flex-wrap items-center justify-between text-[10px] text-neutral-300 gap-1 pt-0.5">
+                      <span className="flex items-center gap-1">
+                        <span className="w-2 h-2 rounded-full bg-blue-500" />
+                        נסיעה: {timeEstimation.totalTransitMinutes} דק'
+                      </span>
+                      <span className="flex items-center gap-1">
+                        <span className="w-2 h-2 rounded-full bg-purple-500" />
+                        פריקה: {timeEstimation.totalUnloadMinutes} דק'
+                      </span>
+                      <span className="flex items-center gap-1">
+                        <span className="w-2 h-2 rounded-full bg-amber-400" />
+                        שערים ({selectedStops.length} תחנות): {timeEstimation.totalStopOverheadMinutes} דק'
+                      </span>
+                      <span className="flex items-center gap-1">
+                        <span className="w-2 h-2 rounded-full bg-emerald-400" />
+                        העמסה: {timeEstimation.depotPrepMinutes} דק'
+                      </span>
+                    </div>
+                  </div>
+                </div>
+
+                {/* 2. Interactive Parameters: Speed, Stops Overhead & Departure Time */}
+                <div className="p-3.5 bg-neutral-50 rounded-2xl border border-neutral-200 space-y-3.5">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-black text-neutral-900 flex items-center gap-1.5">
+                      <SlidersHorizontal className="w-4 h-4 text-blue-600" />
+                      התאמת פרמטרים וחישוב מהירות:
+                    </span>
+                    <span className="text-[10px] text-neutral-500 font-bold">
+                      {selectedStops.length} תחנות בסבב
+                    </span>
+                  </div>
+
+                  {/* 2.1 Average Transit Speed */}
+                  <div className="space-y-1.5">
+                    <div className="flex items-center justify-between">
+                      <label className="text-[11px] font-bold text-neutral-700 flex items-center gap-1">
+                        <Gauge className="w-3.5 h-3.5 text-blue-600" />
+                        מהירות נסיעה ממוצעת:
+                      </label>
+                      <span className="font-mono font-black text-xs text-blue-700 bg-blue-50 px-2 py-0.5 rounded-lg border border-blue-200">
+                        {transitSpeedKmH} קמ"ש
+                      </span>
+                    </div>
+
+                    {/* Speed Presets */}
+                    <div className="grid grid-cols-3 gap-1.5">
+                      <button
+                        type="button"
+                        onClick={() => setTransitSpeedKmH(30)}
+                        className={`py-1.5 px-2 rounded-xl text-[11px] font-bold border transition-all cursor-pointer ${
+                          transitSpeedKmH === 30
+                            ? 'bg-blue-600 text-white border-blue-700 shadow-xs'
+                            : 'bg-white hover:bg-blue-50 text-neutral-700 border-neutral-200'
+                        }`}
+                      >
+                        🚗 פקקים / עירוני (30)
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setTransitSpeedKmH(42)}
+                        className={`py-1.5 px-2 rounded-xl text-[11px] font-bold border transition-all cursor-pointer ${
+                          transitSpeedKmH === 42
+                            ? 'bg-blue-600 text-white border-blue-700 shadow-xs'
+                            : 'bg-white hover:bg-blue-50 text-neutral-700 border-neutral-200'
+                        }`}
+                      >
+                        🚛 רגיל (42) ⭐
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setTransitSpeedKmH(55)}
+                        className={`py-1.5 px-2 rounded-xl text-[11px] font-bold border transition-all cursor-pointer ${
+                          transitSpeedKmH === 55
+                            ? 'bg-blue-600 text-white border-blue-700 shadow-xs'
+                            : 'bg-white hover:bg-blue-50 text-neutral-700 border-neutral-200'
+                        }`}
+                      >
+                        🛣️ שוטף / מהיר (55)
+                      </button>
+                    </div>
+
+                    {/* Fine-tune slider */}
+                    <div className="pt-1 flex items-center gap-2">
+                      <span className="text-[10px] text-neutral-400 font-mono">20</span>
+                      <input
+                        type="range"
+                        min={20}
+                        max={70}
+                        step={1}
+                        value={transitSpeedKmH}
+                        onChange={(e) => setTransitSpeedKmH(Number(e.target.value))}
+                        className="flex-1 accent-blue-600 cursor-pointer h-1.5 bg-neutral-200 rounded-lg"
+                      />
+                      <span className="text-[10px] text-neutral-400 font-mono">70</span>
+                    </div>
+                  </div>
+
+                  {/* 2.2 Stop Overhead & Maneuvering Buffer */}
+                  <div className="space-y-1.5 pt-2 border-t border-neutral-200/80">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <label className="text-[11px] font-bold text-neutral-700 block">
+                          זמן שער, בידוק ותמרון לכל תחנה:
+                        </label>
+                        <span className="text-[10px] text-neutral-500">
+                          {selectedStops.length} תחנות × {stopOverheadMinutes} דק' = תוספת <strong>{timeEstimation.totalStopOverheadMinutes} דקות</strong> לסבב
+                        </span>
+                      </div>
+
+                      {/* Options */}
+                      <div className="flex items-center gap-1">
+                        {[5, 8, 12, 15].map((mins) => (
+                          <button
+                            key={mins}
+                            type="button"
+                            onClick={() => setStopOverheadMinutes(mins)}
+                            className={`px-2 py-1 rounded-lg text-xs font-bold border transition-all cursor-pointer ${
+                              stopOverheadMinutes === mins
+                                ? 'bg-amber-500 text-neutral-950 border-amber-600 shadow-2xs'
+                                : 'bg-white text-neutral-700 border-neutral-200 hover:bg-neutral-100'
+                            }`}
+                          >
+                            {mins} דק'
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* 2.3 Departure Time */}
+                  <div className="space-y-1.5 pt-2 border-t border-neutral-200/80">
+                    <div className="flex items-center justify-between">
+                      <label className="text-[11px] font-bold text-neutral-700 flex items-center gap-1">
+                        <Calendar className="w-3.5 h-3.5 text-neutral-600" />
+                        שעת יציאה ממגרש סבן:
+                      </label>
+
+                      <div className="flex items-center gap-1.5">
+                        <button
+                          type="button"
+                          onClick={handleSetCurrentTime}
+                          className="px-2 py-1 bg-neutral-200 hover:bg-neutral-300 text-neutral-800 text-[10px] font-bold rounded-lg cursor-pointer"
+                        >
+                          עכשיו
+                        </button>
+                        <input
+                          type="time"
+                          value={departureTime}
+                          onChange={(e) => setDepartureTime(e.target.value)}
+                          className="px-2 py-1 bg-white border border-neutral-300 rounded-lg text-xs font-mono font-bold outline-none focus:border-blue-500"
+                        />
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* 3. Detailed Stop-by-Stop Turnaround Timeline */}
+                <div className="space-y-2">
+                  <span className="text-xs font-extrabold text-neutral-800 block">
+                    לוח זמנים משוער לסבב (Schedule Timeline):
+                  </span>
+
+                  <div className="space-y-2 relative before:absolute before:top-3 before:bottom-3 before:right-3.5 before:w-0.5 before:bg-neutral-200">
+                    {/* Departure from Saban Yard */}
+                    <div className="relative flex items-start gap-2.5 p-2.5 bg-neutral-50 rounded-xl border border-neutral-200 text-xs">
+                      <span className="w-7 h-7 rounded-full bg-neutral-900 text-amber-400 flex items-center justify-center font-black text-xs shrink-0 z-10 shadow-2xs">
+                        🏗️
+                      </span>
+                      <div className="flex-1">
+                        <div className="flex items-center justify-between">
+                          <span className="font-extrabold text-neutral-900">מוצא: מגרש סבן (הוד השרון)</span>
+                          <span className="font-mono font-extrabold text-neutral-800 bg-white px-1.5 py-0.5 rounded border border-neutral-200 text-[11px]">
+                            {timeEstimation.departureTime}
+                          </span>
+                        </div>
+                        <p className="text-[10px] text-neutral-500 mt-0.5">
+                          העמסה וקשירת מטען במגרש ({timeEstimation.depotPrepMinutes} דק') • יציאה לדרך
+                        </p>
+                      </div>
+                    </div>
+
+                    {/* Each Stop in order */}
+                    {timeEstimation.legs.map((leg) => (
+                      <div
+                        key={`leg-${leg.stopIndex}`}
+                        className="relative flex items-start gap-2.5 p-2.5 bg-white rounded-xl border border-neutral-200 shadow-2xs text-xs hover:border-blue-300 transition-all"
+                      >
+                        <span className="w-7 h-7 rounded-full bg-blue-600 text-white flex items-center justify-center font-black text-xs shrink-0 z-10 shadow-2xs">
+                          {leg.stopIndex}
+                        </span>
+                        <div className="flex-1 space-y-1">
+                          <div className="flex items-center justify-between">
+                            <span className="font-extrabold text-neutral-900">{leg.clientName}</span>
+                            <div className="flex items-center gap-1 font-mono text-[11px]">
+                              <span className="text-blue-700 font-bold bg-blue-50 px-1.5 py-0.5 rounded">
+                                הגעה: {leg.arrivalTime}
+                              </span>
+                              <span className="text-neutral-400">⟵</span>
+                              <span className="text-neutral-600 bg-neutral-100 px-1.5 py-0.5 rounded">
+                                יציאה: {leg.departureTime}
+                              </span>
+                            </div>
+                          </div>
+
+                          <div className="flex flex-wrap items-center justify-between gap-1 text-[10px] text-neutral-500 pt-0.5 border-t border-neutral-100">
+                            <span>
+                              נסיעה מהתחנה הקודמת: <strong className="text-neutral-700">{leg.distanceFromPrevKm} ק"מ (~{leg.travelMinutesFromPrev} דק')</strong>
+                            </span>
+                            <span className="text-amber-900 bg-amber-50 px-1.5 py-0.2 rounded font-medium">
+                              שהייה באתר: {leg.totalStopMinutes} דק' ({leg.unloadMinutes} דק' פריקה + {leg.maneuveringMinutes} דק' שער)
+                            </span>
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+
+                    {/* Return to Depot */}
+                    <div className="relative flex items-start gap-2.5 p-2.5 bg-emerald-50/80 rounded-xl border border-emerald-200 text-xs">
+                      <span className="w-7 h-7 rounded-full bg-emerald-700 text-white flex items-center justify-center font-black text-xs shrink-0 z-10 shadow-2xs">
+                        🏁
+                      </span>
+                      <div className="flex-1">
+                        <div className="flex items-center justify-between">
+                          <span className="font-extrabold text-emerald-950">חזרה לבסיס סבן (סיום סבב מלא)</span>
+                          <span className="font-mono font-black text-emerald-800 bg-emerald-100 px-2 py-0.5 rounded text-[11px]">
+                            {timeEstimation.estimatedReturnTime}
+                          </span>
+                        </div>
+                        <p className="text-[10px] text-emerald-800 mt-0.5">
+                          קטע חזרה: {timeEstimation.returnLegDistanceKm} ק"מ (~{timeEstimation.returnLegTravelMinutes} דק' נסיעה)
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </>
+            )}
+          </div>
+        )}
+
+        {/* Tab 3: LIFO Loading Assistant */}
         {activeTab === 'lifo' && deliveryRound && (
           <div className="space-y-3.5">
             <div className="p-3 bg-amber-50 border border-amber-200 rounded-2xl text-xs space-y-1">
@@ -518,7 +931,7 @@ export const RoutePlanner: React.FC<RoutePlannerProps> = ({
           </div>
         )}
 
-        {/* Tab 3: Aggregate Round Pricing & Fuel Breakdown */}
+        {/* Tab 4: Aggregate Round Pricing & Fuel Breakdown */}
         {activeTab === 'pricing' && deliveryRound && (
           <div className="space-y-3.5">
             {/* Savings Banner */}
@@ -548,8 +961,9 @@ export const RoutePlanner: React.FC<RoutePlannerProps> = ({
               <div className="p-2.5 bg-neutral-50 rounded-xl border border-neutral-200 text-center">
                 <span className="text-[10px] text-neutral-500 font-bold block">זמן נסיעה משוער</span>
                 <span className="text-base font-extrabold text-neutral-900">
-                  ~{deliveryRound.totalTravelMinutes} דק'
+                  ~{timeEstimation?.totalTransitMinutes ?? deliveryRound.totalTravelMinutes} דק'
                 </span>
+                <span className="text-[9px] text-neutral-400 block font-mono">({transitSpeedKmH} קמ"ש)</span>
               </div>
 
               <div className="p-2.5 bg-neutral-50 rounded-xl border border-neutral-200 text-center">

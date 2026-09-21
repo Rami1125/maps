@@ -1,9 +1,9 @@
 import React, { useState, useMemo, useCallback, useEffect } from 'react';
 import { ClientSite, TruckType, District, DeliveryRound } from './types';
-import { CLIENT_SITES, DEPOT, TRUCKS } from './data/clients';
+import { CLIENT_SITES, DEPOT, TRUCKS, calculateDrivingDistanceKm } from './data/clients';
 import { calculateDeliveryCostAndPrice } from './utils/pricing';
 import { buildDeliveryRound } from './utils/routePlanner';
-import { fetchClientsFromSheets, SyncStatus } from './services/sheetsService';
+import { fetchClientsFromSheets, SyncStatus, DEFAULT_APPS_SCRIPT_URL } from './services/sheetsService';
 import { MapComponent } from './components/MapComponent';
 import { SearchBar } from './components/SearchBar';
 import { TruckToolbar } from './components/TruckToolbar';
@@ -48,7 +48,7 @@ export default function App() {
 
   // Google Sheets Sync State
   const [customScriptUrl, setCustomScriptUrl] = useState<string>(() => {
-    return localStorage.getItem('saban_custom_script_url') || '';
+    return localStorage.getItem('saban_custom_script_url') || DEFAULT_APPS_SCRIPT_URL;
   });
   const [isSyncLoading, setIsSyncLoading] = useState<boolean>(false);
   const [syncStatus, setSyncStatus] = useState<SyncStatus>({
@@ -158,6 +158,28 @@ export default function App() {
     setIsDepotSelected(false);
   }, []);
 
+  // Update Client Coordinates on Map Pin Drag (Precision Gate Location)
+  const handleUpdateClientCoordinates = useCallback((clientId: string, newLat: number, newLng: number) => {
+    const { distanceKm } = calculateDrivingDistanceKm(DEPOT.lat, DEPOT.lng, newLat, newLng);
+
+    const updateFn = (c: ClientSite): ClientSite => {
+      if (c.id !== clientId) return c;
+      return {
+        ...c,
+        lat: newLat,
+        lng: newLng,
+        distanceKm,
+        hasExactGps: true,
+        gpsCoordinates: `${newLat.toFixed(7)}, ${newLng.toFixed(7)}`,
+        gpsSource: 'map_drag',
+      };
+    };
+
+    setClients((prev) => prev.map(updateFn));
+    setSelectedClient((prev) => (prev && prev.id === clientId ? updateFn(prev) : prev));
+    setRouteStops((prev) => prev.map(updateFn));
+  }, []);
+
   // When a newly geocoded client is added
   const handleClientAdded = useCallback((newClient: ClientSite) => {
     setClients((prev) => [newClient, ...prev]);
@@ -180,6 +202,7 @@ export default function App() {
           mapLayerType={mapLayerType}
           deliveryRound={deliveryRound}
           isRoutePlannerActive={isRoutePlannerOpen}
+          onUpdateClientCoordinates={handleUpdateClientCoordinates}
         />
       </div>
 
@@ -248,15 +271,27 @@ export default function App() {
             type="button"
             onClick={() => setIsSyncModalOpen(true)}
             title="הגדרות סנכרון Google Sheets ו-Make.com"
-            className="px-3 py-2 bg-neutral-900/90 hover:bg-neutral-900 text-white rounded-2xl text-xs font-bold flex items-center gap-1.5 shadow-lg border border-neutral-700 transition-all cursor-pointer"
+            className={`px-3 py-2 rounded-2xl text-xs font-bold flex items-center gap-1.5 shadow-lg border transition-all cursor-pointer ${
+              syncStatus.scriptError
+                ? 'bg-amber-950/90 hover:bg-amber-900 text-amber-300 border-amber-500 shadow-amber-900/20'
+                : 'bg-neutral-900/90 hover:bg-neutral-900 text-white border-neutral-700'
+            }`}
           >
             <span
               className={`w-2 h-2 rounded-full ${
-                syncStatus.isLive ? 'bg-emerald-400 animate-ping' : 'bg-blue-400'
+                syncStatus.isLive
+                  ? 'bg-emerald-400 animate-ping'
+                  : syncStatus.scriptError
+                  ? 'bg-amber-400 animate-pulse'
+                  : 'bg-blue-400'
               }`}
             />
             <span className="text-[11px]">
-              {syncStatus.isLive ? 'Sheets פעיל' : 'מאגר 63'}
+              {syncStatus.isLive
+                ? 'Sheets חי'
+                : syncStatus.scriptError
+                ? 'נדרש עדכון קוד Apps Script'
+                : 'מאגר 63'}
             </span>
           </button>
 

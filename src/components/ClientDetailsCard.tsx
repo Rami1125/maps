@@ -22,6 +22,8 @@ import {
   Send,
   PlusCircle,
   CreditCard,
+  Crosshair,
+  Target,
 } from 'lucide-react';
 import { ClientSite, PricingBreakdown, TruckConfig } from '../types';
 import { DEPOT } from '../data/clients';
@@ -49,6 +51,7 @@ export const ClientDetailsCard: React.FC<ClientDetailsCardProps> = ({
 }) => {
   const [showCostBreakdown, setShowCostBreakdown] = useState(true);
   const [copiedQuick, setCopiedQuick] = useState(false);
+  const [copiedGps, setCopiedGps] = useState(false);
   const [isSendingWebhook, setIsSendingWebhook] = useState(false);
   const [webhookToast, setWebhookToast] = useState<string | null>(null);
 
@@ -57,6 +60,13 @@ export const ClientDetailsCard: React.FC<ClientDetailsCardProps> = ({
   const phoneUrl = `tel:${client.contactPhone.replace(/[^0-9+]/g, '')}`;
 
   const isProblematic = client.status === 'problematic';
+
+  const handleCopyGps = () => {
+    const coords = `${client.lat.toFixed(7)}, ${client.lng.toFixed(7)}`;
+    navigator.clipboard.writeText(coords);
+    setCopiedGps(true);
+    setTimeout(() => setCopiedGps(false), 3000);
+  };
 
   const handleQuickCopy = () => {
     const text = generateWhatsAppMessage(client, truck, pricing, 'driver');
@@ -155,7 +165,7 @@ export const ClientDetailsCard: React.FC<ClientDetailsCardProps> = ({
                 target="_blank"
                 rel="noreferrer"
                 className="px-2.5 py-1 bg-cyan-50 hover:bg-cyan-100 text-cyan-800 border border-cyan-200 rounded-lg text-xs font-bold flex items-center gap-1 transition-colors"
-                title="נווט עם Waze"
+                title="נווט עם Waze ישירות לנקודת ה-GPS"
               >
                 <span>🧭 Waze</span>
               </a>
@@ -164,11 +174,99 @@ export const ClientDetailsCard: React.FC<ClientDetailsCardProps> = ({
                 target="_blank"
                 rel="noreferrer"
                 className="p-1.5 bg-neutral-100 hover:bg-neutral-200 text-neutral-700 rounded-lg transition-colors"
-                title="נווט עם Google Maps"
+                title="נווט עם Google Maps לנ.צ מדויק"
               >
                 <ExternalLink className="w-3.5 h-3.5" />
               </a>
             </div>
+          </div>
+        </div>
+
+        {/* GPS Precision & Live Pin Adjustment (Column P) */}
+        <div className="p-3 bg-gradient-to-r from-blue-50/90 via-sky-50/70 to-indigo-50/80 rounded-2xl border border-blue-200/90 shadow-2xs space-y-2.5">
+          <div className="flex items-center justify-between gap-1">
+            <div className="flex items-center gap-1.5 font-black text-xs text-blue-950">
+              <Crosshair className="w-4 h-4 text-blue-600 flex-shrink-0" />
+              <span>מיקום GPS ושער כניסה (עמודה P)</span>
+            </div>
+            <span
+              className={`text-[10px] font-black px-2.5 py-0.5 rounded-full border shadow-2xs ${
+                client.gpsSource === 'sheet_col_p'
+                  ? 'bg-emerald-100 text-emerald-900 border-emerald-300'
+                  : client.gpsSource === 'map_drag'
+                  ? 'bg-amber-100 text-amber-900 border-amber-400'
+                  : client.hasExactGps
+                  ? 'bg-blue-100 text-blue-900 border-blue-300'
+                  : 'bg-neutral-100 text-neutral-600 border-neutral-200'
+              }`}
+            >
+              {client.gpsSource === 'sheet_col_p'
+                ? '🎯 נטען מעמודה P (100% מדויק)'
+                : client.gpsSource === 'map_drag'
+                ? '🟡 עודכן ידנית בגרירת סיכה'
+                : client.hasExactGps
+                ? '🎯 נ.צ מדויק'
+                : '📍 מיקום משוער (גרור סיכה לשער)'}
+            </span>
+          </div>
+
+          {/* Coordinate Display with Lat / Lng */}
+          <div className="flex items-center justify-between bg-white px-3 py-1.5 rounded-xl border border-blue-100 text-xs">
+            <span className="text-neutral-500 text-[11px] font-bold">קואורדינטות:</span>
+            <div className="font-mono font-bold text-neutral-900 tracking-wider dir-ltr select-all">
+              {client.lat.toFixed(7)}, {client.lng.toFixed(7)}
+            </div>
+          </div>
+
+          {/* Copy GPS to Clipboard Button */}
+          <button
+            type="button"
+            onClick={handleCopyGps}
+            className={`w-full py-2 px-3 rounded-xl font-black text-xs flex items-center justify-center gap-2 border transition-all cursor-pointer shadow-xs ${
+              copiedGps
+                ? 'bg-emerald-600 text-white border-emerald-700 shadow-md'
+                : 'bg-white hover:bg-blue-50 text-blue-900 border-blue-300 hover:border-blue-400'
+            }`}
+          >
+            {copiedGps ? (
+              <>
+                <Check className="w-4 h-4 text-white animate-bounce" />
+                <span>קואורדינטות הועתקו ללוח! הדבק בעמודה P בגיליון</span>
+              </>
+            ) : (
+              <>
+                <Copy className="w-4 h-4 text-blue-600" />
+                <span>📋 העתק קואורדינטות GPS להדבקה בעמודה P בגיליון</span>
+              </>
+            )}
+          </button>
+
+          {/* Navigation Links directly to GPS coordinates (Requirement 3) */}
+          <div className="grid grid-cols-2 gap-2 pt-1 border-t border-blue-100/80">
+            <a
+              href={wazeUrl}
+              target="_blank"
+              rel="noreferrer"
+              className="py-1.5 px-2.5 bg-cyan-600 hover:bg-cyan-700 text-white rounded-xl text-xs font-black flex items-center justify-center gap-1.5 transition-colors shadow-2xs"
+              title="פתח ניווט Waze ישירות לנקודת ה-GPS המדויקת של שער האתר"
+            >
+              <span>🧭 Waze לשער האתר</span>
+              <ExternalLink className="w-3 h-3 text-cyan-200" />
+            </a>
+            <a
+              href={googleMapsUrl}
+              target="_blank"
+              rel="noreferrer"
+              className="py-1.5 px-2.5 bg-neutral-800 hover:bg-neutral-900 text-white rounded-xl text-xs font-black flex items-center justify-center gap-1.5 transition-colors shadow-2xs"
+              title="פתח ניווט Google Maps ישירות לנ.צ המדויק"
+            >
+              <span>🗺️ Google Maps (נ.צ)</span>
+              <ExternalLink className="w-3 h-3 text-neutral-400" />
+            </a>
+          </div>
+
+          <div className="text-[10px] text-blue-800/80 font-medium">
+            💡 ניתן לגרור את הסיכה הצהובה/זוהרת במפה למיקום המדויק של שער הכניסה לאתר
           </div>
         </div>
 

@@ -106,6 +106,7 @@ export function generateWhatsAppMessage(
 ---------------------------------
 📍 *יעד פריקה:* ${client.name} (קומקס: #${client.comaxId})
 🏘️ *כתובת:* ${client.address}, ${client.city} (${client.district})
+🎯 *נ.צ מדויק לשער האתר:* ${client.lat.toFixed(7)}, ${client.lng.toFixed(7)}
 📏 *מרחק נסיעה מהמגרש:* כ-${pricing.oneWayDistanceKm} ק"מ (~${pricing.travelMinutes} דק')
 ⏱️ *זמן פריקה משוער:* ${pricing.ptoMinutes} דקות (${truck.id === 'crane' ? 'מנוף' : 'פלטה'})
 
@@ -116,7 +117,7 @@ export function generateWhatsAppMessage(
 ${client.observations}
 ${client.status === 'problematic' ? `\n🚨 *שים לב:* אתר מוגדר כבעייתי! ${client.riskDetails || ''}` : ''}
 
-🧭 *קישורי ניווט מהירים:*
+🧭 *קישורי ניווט ישירים לשער האתר (GPS):*
 • Waze: ${wazeLink}
 • Google Maps: ${googleMapsLink}
 

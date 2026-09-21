@@ -10,8 +10,48 @@ import {
   Database,
   Link,
   Layers,
+  Copy,
+  Check,
+  Code2,
+  AlertTriangle,
 } from 'lucide-react';
 import { GOOGLE_SHEET_ID, SHEET_TAB_NAME, MAKE_WEBHOOK_URL, SyncStatus, dispatchToMakeWebhook } from '../services/sheetsService';
+
+const APPS_SCRIPT_TEMPLATE = `function doGet(e) {
+  try {
+    var ss = SpreadsheetApp.getActiveSpreadsheet();
+    // Read the Saban destinations tab (or first available tab)
+    var sheet = ss.getSheetByName("מאגר_יעדים_וזמני_פריקה") || ss.getSheets()[0];
+    var data = sheet.getDataRange().getValues();
+    if (!data || data.length < 2) {
+      return ContentService.createTextOutput(JSON.stringify({ error: "No data in sheet" }))
+        .setMimeType(ContentService.MimeType.JSON);
+    }
+    
+    var headers = data[0];
+    var result = [];
+    for (var i = 1; i < data.length; i++) {
+      var row = data[i];
+      if (!row[0] && !row[1] && !row[2]) continue; // Skip empty rows
+      var obj = {};
+      for (var j = 0; j < headers.length; j++) {
+        var key = headers[j] ? String(headers[j]).trim() : "col_" + j;
+        obj[key] = row[j];
+      }
+      // Ensure column P (index 15) is explicitly mapped for GPS coords
+      if (row.length > 15 && row[15]) {
+        obj["קואורדינטות GPS (Lat, Lng)"] = String(row[15]).trim();
+      }
+      result.push(obj);
+    }
+    
+    return ContentService.createTextOutput(JSON.stringify(result))
+      .setMimeType(ContentService.MimeType.JSON);
+  } catch (err) {
+    return ContentService.createTextOutput(JSON.stringify({ error: err.toString() }))
+      .setMimeType(ContentService.MimeType.JSON);
+  }
+}`;
 
 interface SyncSettingsModalProps {
   syncStatus: SyncStatus;
@@ -33,6 +73,14 @@ export const SyncSettingsModal: React.FC<SyncSettingsModalProps> = ({
   const [scriptInput, setScriptInput] = useState(customScriptUrl);
   const [testWebhookStatus, setTestWebhookStatus] = useState<string | null>(null);
   const [isTestingWebhook, setIsTestingWebhook] = useState(false);
+  const [copiedCode, setCopiedCode] = useState(false);
+  const [showCodeDetails, setShowCodeDetails] = useState(false);
+
+  const handleCopyCode = () => {
+    navigator.clipboard.writeText(APPS_SCRIPT_TEMPLATE);
+    setCopiedCode(true);
+    setTimeout(() => setCopiedCode(false), 3500);
+  };
 
   const handleSaveAndSync = () => {
     onUpdateScriptUrl(scriptInput);
@@ -138,20 +186,95 @@ export const SyncSettingsModal: React.FC<SyncSettingsModalProps> = ({
             </div>
 
             {/* Custom Google Apps Script Endpoint input */}
-            <div>
-              <label className="text-[11px] font-bold text-emerald-950 block mb-1">
-                כתובת Google Apps Script Web App (אופציונלי עבור גיליון פרטי):
-              </label>
+            <div className="space-y-2">
+              <div className="flex items-center justify-between">
+                <label className="text-[11px] font-bold text-emerald-950 block">
+                  כתובת Google Apps Script Web App (סנכרון ישיר):
+                </label>
+                <span className="text-[10px] text-emerald-700 font-bold bg-emerald-100 px-2 py-0.5 rounded-full">
+                  מוגדר כברירת מחדל
+                </span>
+              </div>
               <input
                 type="url"
                 value={scriptInput}
                 onChange={(e) => setScriptInput(e.target.value)}
                 placeholder="https://script.google.com/macros/s/.../exec"
-                className="w-full px-3 py-1.5 bg-white border border-emerald-300 rounded-xl text-xs font-mono outline-none focus:border-emerald-600"
+                className="w-full px-3 py-2 bg-white border border-emerald-300 rounded-xl text-xs font-mono outline-none focus:border-emerald-600 shadow-2xs"
               />
-              <p className="text-[10px] text-neutral-500 mt-1">
-                אם הגיליון פרטי, הטמעת סקריפט Web App מאפשרת סנכרון דו-כיווני מאובטח.
-              </p>
+
+              {/* Error Diagnostic Banner */}
+              {syncStatus.scriptError && (
+                <div className="p-3 bg-amber-50 border border-amber-300 rounded-xl space-y-2 text-amber-950">
+                  <div className="flex items-start gap-2">
+                    <AlertTriangle className="w-4 h-4 text-amber-600 flex-shrink-0 mt-0.5" />
+                    <div>
+                      <div className="font-extrabold text-[11px] text-amber-900">
+                        החיבור ל-Apps Script נוצר בהצלחה, אך חזר משוב:
+                      </div>
+                      <div className="font-mono font-bold text-[11px] text-amber-800 bg-amber-100/80 px-2 py-0.5 rounded mt-1 inline-block">
+                        &quot;{syncStatus.scriptError}&quot;
+                      </div>
+                    </div>
+                  </div>
+                  <p className="text-[11px] text-amber-900 leading-snug">
+                    קוד ה-Apps Script שפרסתם מחפש טאב בשם <span className="font-mono font-bold">Inventory</span> במקום לקרוא את הטאב <span className="font-bold underline">{SHEET_TAB_NAME}</span> (כולל עמודה P לקואורדינטות GPS).
+                  </p>
+                  <p className="text-[10px] text-neutral-600 font-bold">
+                    💡 תיקון מהיר ב-30 שניות: לחצו למטה על &quot;העתק קוד Apps Script&quot;, פתחו בגיליון תוספים &gt; Apps Script, הדביקו במקום הקוד הקיים, ולחצו Deploy!
+                  </p>
+                </div>
+              )}
+
+              {/* 1-Click Copy Apps Script Code Button */}
+              <div className="pt-1">
+                <button
+                  type="button"
+                  onClick={handleCopyCode}
+                  className={`w-full py-2 px-3 rounded-xl font-black text-xs flex items-center justify-center gap-2 border transition-all cursor-pointer shadow-xs ${
+                    copiedCode
+                      ? 'bg-emerald-600 text-white border-emerald-700 shadow-md'
+                      : 'bg-white hover:bg-emerald-100 text-emerald-900 border-emerald-300 hover:border-emerald-400'
+                  }`}
+                >
+                  {copiedCode ? (
+                    <>
+                      <Check className="w-4 h-4 text-white animate-bounce" />
+                      <span>קוד Apps Script הועתק! הדבק ב-Extensions &gt; Apps Script</span>
+                    </>
+                  ) : (
+                    <>
+                      <Code2 className="w-4 h-4 text-emerald-700" />
+                      <span>📋 העתק קוד Apps Script מוכן (לסנכרון מלא כולל עמודה P)</span>
+                    </>
+                  )}
+                </button>
+
+                <div className="mt-1.5 flex items-center justify-between text-[10px] text-emerald-800">
+                  <button
+                    type="button"
+                    onClick={() => setShowCodeDetails(!showCodeDetails)}
+                    className="underline hover:text-emerald-950 font-bold cursor-pointer"
+                  >
+                    {showCodeDetails ? 'הסתר קוד Apps Script' : 'הצג קוד Apps Script להעתקה ידנית'}
+                  </button>
+                  <a
+                    href="https://script.google.com"
+                    target="_blank"
+                    rel="noreferrer"
+                    className="flex items-center gap-1 font-bold hover:underline"
+                  >
+                    <span>עורך Apps Script</span>
+                    <ExternalLink className="w-3 h-3" />
+                  </a>
+                </div>
+
+                {showCodeDetails && (
+                  <div className="mt-2 p-2.5 bg-neutral-900 text-neutral-200 rounded-xl font-mono text-[10px] max-h-40 overflow-y-auto dir-ltr">
+                    <pre>{APPS_SCRIPT_TEMPLATE}</pre>
+                  </div>
+                )}
+              </div>
             </div>
           </div>
 
