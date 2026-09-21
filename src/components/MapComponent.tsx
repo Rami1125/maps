@@ -100,8 +100,11 @@ export const MapComponent: React.FC<MapComponentProps> = ({
   useEffect(() => {
     if (!mapContainerRef.current || mapInstanceRef.current) return;
 
+    const safeDepotLat = typeof depot?.lat === 'number' && !isNaN(depot.lat) && isFinite(depot.lat) ? depot.lat : 32.15574;
+    const safeDepotLng = typeof depot?.lng === 'number' && !isNaN(depot.lng) && isFinite(depot.lng) ? depot.lng : 34.89668;
+
     const map = L.map(mapContainerRef.current, {
-      center: [depot.lat, depot.lng],
+      center: [safeDepotLat, safeDepotLng],
       zoom: 12,
       zoomControl: false,
       attributionControl: true,
@@ -124,6 +127,7 @@ export const MapComponent: React.FC<MapComponentProps> = ({
     if (!map) return;
 
     const handleMapClick = (e: L.LeafletMouseEvent) => {
+      if (!e?.latlng || isNaN(e.latlng.lat) || isNaN(e.latlng.lng)) return;
       if (onMapClick) {
         onMapClick(e.latlng.lat, e.latlng.lng);
       }
@@ -189,6 +193,9 @@ export const MapComponent: React.FC<MapComponentProps> = ({
       </div>
     `;
 
+    const safeDepotLat = typeof depot?.lat === 'number' && !isNaN(depot.lat) && isFinite(depot.lat) ? depot.lat : 32.15574;
+    const safeDepotLng = typeof depot?.lng === 'number' && !isNaN(depot.lng) && isFinite(depot.lng) ? depot.lng : 34.89668;
+
     const depotIcon = L.divIcon({
       className: 'custom-depot-pin',
       html: depotIconHtml,
@@ -196,11 +203,11 @@ export const MapComponent: React.FC<MapComponentProps> = ({
       iconAnchor: [24, 24],
     });
 
-    const marker = L.marker([depot.lat, depot.lng], { icon: depotIcon })
+    const marker = L.marker([safeDepotLat, safeDepotLng], { icon: depotIcon })
       .addTo(map)
       .on('click', () => {
         onSelectDepot();
-        map.flyTo([depot.lat, depot.lng], 14, { duration: 1 });
+        map.flyTo([safeDepotLat, safeDepotLng], 14, { duration: 1 });
       });
 
     depotMarkerRef.current = marker;
@@ -216,6 +223,14 @@ export const MapComponent: React.FC<MapComponentProps> = ({
     markersRef.current = {};
 
     clients.forEach((client) => {
+      const clientLat = typeof client.lat === 'number' ? client.lat : parseFloat(client.lat as any);
+      const clientLng = typeof client.lng === 'number' ? client.lng : parseFloat(client.lng as any);
+
+      // Skip invalid coordinates to prevent Leaflet crash
+      if (isNaN(clientLat) || isNaN(clientLng) || !isFinite(clientLat) || !isFinite(clientLng) || (clientLat === 0 && clientLng === 0)) {
+        return;
+      }
+
       const isSelected = selectedClient?.id === client.id;
       const isProblematic = client.status === 'problematic';
 
@@ -284,7 +299,7 @@ export const MapComponent: React.FC<MapComponentProps> = ({
         iconAnchor: [21, 24],
       });
 
-      const marker = L.marker([client.lat, client.lng], {
+      const marker = L.marker([clientLat, clientLng], {
         icon: customIcon,
         draggable: isDraggable,
         autoPan: true,
@@ -297,7 +312,9 @@ export const MapComponent: React.FC<MapComponentProps> = ({
       if (isDraggable && onUpdateClientCoordinates) {
         marker.on('dragend', (event: L.LeafletEvent) => {
           const latLng = (event.target as L.Marker).getLatLng();
-          onUpdateClientCoordinates(client.id, latLng.lat, latLng.lng);
+          if (latLng && !isNaN(latLng.lat) && !isNaN(latLng.lng) && isFinite(latLng.lat) && isFinite(latLng.lng)) {
+            onUpdateClientCoordinates(client.id, latLng.lat, latLng.lng);
+          }
         });
       }
 
@@ -319,7 +336,7 @@ export const MapComponent: React.FC<MapComponentProps> = ({
             ${isProblematic ? '⚠️ אתר בעייתי (+10% סיכון)' : '🟢 אתר תקין (שוטף)'}
           </div>
           <div class="mt-1 text-[10px] font-mono font-bold text-blue-800 bg-blue-50 px-1.5 py-0.5 rounded border border-blue-200 inline-block">
-            ${gpsSourceText}: ${client.lat.toFixed(6)}, ${client.lng.toFixed(6)}
+            ${gpsSourceText}: ${clientLat.toFixed(6)}, ${clientLng.toFixed(6)}
           </div>
           ${isSelected ? '<div class="text-[9px] text-amber-700 font-bold mt-0.5">💡 גרור סיכה זו במפה לשער המדויק</div>' : ''}
         </div>
@@ -439,21 +456,34 @@ export const MapComponent: React.FC<MapComponentProps> = ({
       return;
     }
 
+    if (isNaN(truckState.lat) || isNaN(truckState.lng) || !isFinite(truckState.lat) || !isFinite(truckState.lng)) {
+      return;
+    }
+
+    // Filter valid coordinates for traveled polyline
+    const validTraveledCoords = (truckState.traveledCoords || []).filter(
+      (c) => Array.isArray(c) && typeof c[0] === 'number' && typeof c[1] === 'number' &&
+             !isNaN(c[0]) && !isNaN(c[1]) && isFinite(c[0]) && isFinite(c[1])
+    );
+
     // 1. Update or create Traveled Path Polyline (Emerald glow trail)
     if (!traveledPolylineRef.current) {
-      const traveledPolyline = L.polyline(truckState.traveledCoords, {
-        color: '#10b981', // Emerald-500
-        weight: 6,
-        opacity: 0.95,
-        lineCap: 'round',
-        lineJoin: 'round',
-      }).addTo(map);
-      traveledPolylineRef.current = traveledPolyline;
+      if (validTraveledCoords.length > 0) {
+        const traveledPolyline = L.polyline(validTraveledCoords, {
+          color: '#10b981', // Emerald-500
+          weight: 6,
+          opacity: 0.95,
+          lineCap: 'round',
+          lineJoin: 'round',
+        }).addTo(map);
+        traveledPolylineRef.current = traveledPolyline;
+      }
     } else {
-      traveledPolylineRef.current.setLatLngs(truckState.traveledCoords);
+      traveledPolylineRef.current.setLatLngs(validTraveledCoords);
     }
 
     // 2. Animated Truck DivIcon with directional heading arrow & radar glow
+    const safeBearing = typeof truckState.bearingDeg === 'number' && !isNaN(truckState.bearingDeg) ? truckState.bearingDeg : 0;
     const truckIconHtml = `
       <div class="relative flex flex-col items-center justify-center cursor-pointer select-none pointer-events-none">
         <!-- Radar Pulse Glow -->
@@ -461,7 +491,7 @@ export const MapComponent: React.FC<MapComponentProps> = ({
         <div class="absolute w-9 h-9 rounded-full bg-blue-500/30 pulse-effect"></div>
 
         <!-- Direction Heading Arrow -->
-        <div style="transform: rotate(${truckState.bearingDeg}deg) translateY(-20px);" class="absolute text-amber-400 text-xs font-black drop-shadow-md transition-transform duration-75">
+        <div style="transform: rotate(${safeBearing}deg) translateY(-20px);" class="absolute text-amber-400 text-xs font-black drop-shadow-md transition-transform duration-75">
           ▲
         </div>
 
@@ -496,7 +526,7 @@ export const MapComponent: React.FC<MapComponentProps> = ({
     }
 
     // 3. Follow Camera (Auto-Center on truck)
-    if (followCamera && isPlaying) {
+    if (followCamera && isPlaying && !isNaN(truckState.lat) && !isNaN(truckState.lng)) {
       map.panTo([truckState.lat, truckState.lng], { animate: true, duration: 0.25 });
     }
   }, [circuit, truckState, deliveryRound, followCamera, isPlaying]);
@@ -529,11 +559,19 @@ export const MapComponent: React.FC<MapComponentProps> = ({
     }
 
     if (deliveryRound && deliveryRound.stops.length > 0) {
+      const safeDepotLat = typeof depot?.lat === 'number' && !isNaN(depot.lat) && isFinite(depot.lat) ? depot.lat : 32.15574;
+      const safeDepotLng = typeof depot?.lng === 'number' && !isNaN(depot.lng) && isFinite(depot.lng) ? depot.lng : 34.89668;
+
+      const validStopCoords: [number, number][] = deliveryRound.stops
+        .filter((s) => s?.client && typeof s.client.lat === 'number' && typeof s.client.lng === 'number' &&
+                       !isNaN(s.client.lat) && !isNaN(s.client.lng) && isFinite(s.client.lat) && isFinite(s.client.lng))
+        .map((s) => [s.client.lat, s.client.lng] as [number, number]);
+
       // Build circuit: Depot -> Stop 1 -> Stop 2 -> ... -> Stop N -> Depot
       const circuitCoords: [number, number][] = [
-        [depot.lat, depot.lng],
-        ...deliveryRound.stops.map((s) => [s.client.lat, s.client.lng] as [number, number]),
-        [depot.lat, depot.lng],
+        [safeDepotLat, safeDepotLng],
+        ...validStopCoords,
+        [safeDepotLat, safeDepotLng],
       ];
 
       const polyline = L.polyline(circuitCoords, {
@@ -568,9 +606,19 @@ export const MapComponent: React.FC<MapComponentProps> = ({
     }
 
     if (!isRoutePlannerActive && selectedClient) {
+      const safeDepotLat = typeof depot?.lat === 'number' && !isNaN(depot.lat) && isFinite(depot.lat) ? depot.lat : 32.15574;
+      const safeDepotLng = typeof depot?.lng === 'number' && !isNaN(depot.lng) && isFinite(depot.lng) ? depot.lng : 34.89668;
+
+      const clientLat = typeof selectedClient.lat === 'number' ? selectedClient.lat : parseFloat(selectedClient.lat as any);
+      const clientLng = typeof selectedClient.lng === 'number' ? selectedClient.lng : parseFloat(selectedClient.lng as any);
+
+      if (isNaN(clientLat) || isNaN(clientLng) || !isFinite(clientLat) || !isFinite(clientLng) || (clientLat === 0 && clientLng === 0)) {
+        return;
+      }
+
       const latlngs: [number, number][] = [
-        [depot.lat, depot.lng],
-        [selectedClient.lat, selectedClient.lng],
+        [safeDepotLat, safeDepotLng],
+        [clientLat, clientLng],
       ];
 
       const polyline = L.polyline(latlngs, {
@@ -583,12 +631,14 @@ export const MapComponent: React.FC<MapComponentProps> = ({
       routePolylineRef.current = polyline;
 
       const isDesktop = window.innerWidth >= 768;
-      const targetLng = isDesktop ? selectedClient.lng + 0.015 : selectedClient.lng;
+      const targetLng = isDesktop ? clientLng + 0.015 : clientLng;
 
-      map.flyTo([selectedClient.lat, targetLng], 14, {
-        duration: 1.2,
-        easeLinearity: 0.25,
-      });
+      if (!isNaN(clientLat) && !isNaN(targetLng) && isFinite(clientLat) && isFinite(targetLng)) {
+        map.flyTo([clientLat, targetLng], 14, {
+          duration: 1.2,
+          easeLinearity: 0.25,
+        });
+      }
     }
   }, [selectedClient, depot, isRoutePlannerActive]);
 

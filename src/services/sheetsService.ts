@@ -243,8 +243,10 @@ function parseGvizTable(table: { cols: { label?: string }[]; rows: { c: ({ v?: a
       (c) => c.comaxId === comaxId || c.name === name || c.address.includes(address)
     );
 
-    const lat = exactGps ? exactGps.lat : (fallbackClient ? fallbackClient.lat : DEPOT.lat + (Math.random() - 0.5) * 0.1);
-    const lng = exactGps ? exactGps.lng : (fallbackClient ? fallbackClient.lng : DEPOT.lng + (Math.random() - 0.5) * 0.1);
+    const rawLat = exactGps?.lat ?? (fallbackClient?.lat ?? ((DEPOT?.lat ?? 32.15574) + (Math.random() - 0.5) * 0.08));
+    const rawLng = exactGps?.lng ?? (fallbackClient?.lng ?? ((DEPOT?.lng ?? 34.89668) + (Math.random() - 0.5) * 0.08));
+    const lat = typeof rawLat === 'number' && !isNaN(rawLat) && isFinite(rawLat) && rawLat !== 0 ? rawLat : 32.15574;
+    const lng = typeof rawLng === 'number' && !isNaN(rawLng) && isFinite(rawLng) && rawLng !== 0 ? rawLng : 34.89668;
     const { distanceKm } = calculateDrivingDistanceKm(DEPOT.lat, DEPOT.lng, lat, lng);
     const gpsFormatted = `${lat.toFixed(6)}, ${lng.toFixed(6)}`;
 
@@ -368,8 +370,12 @@ function parseRawSheetRows(rows: any[]): ClientSite[] {
       (r.lat && r.lng ? `${r.lat}, ${r.lng}` : null);
 
     const exactGps = parseGpsCoordinates(rawGps);
-    const lat = exactGps ? exactGps.lat : (Number(r.lat) || DEPOT.lat + (Math.random() - 0.5) * 0.08);
-    const lng = exactGps ? exactGps.lng : (Number(r.lng) || DEPOT.lng + (Math.random() - 0.5) * 0.08);
+    const parsedRLat = Number(r.lat);
+    const parsedRLng = Number(r.lng);
+    const rawLat = exactGps?.lat ?? (!isNaN(parsedRLat) && parsedRLat !== 0 ? parsedRLat : ((DEPOT?.lat ?? 32.15574) + (Math.random() - 0.5) * 0.08));
+    const rawLng = exactGps?.lng ?? (!isNaN(parsedRLng) && parsedRLng !== 0 ? parsedRLng : ((DEPOT?.lng ?? 34.89668) + (Math.random() - 0.5) * 0.08));
+    const lat = typeof rawLat === 'number' && !isNaN(rawLat) && isFinite(rawLat) && rawLat !== 0 ? rawLat : 32.15574;
+    const lng = typeof rawLng === 'number' && !isNaN(rawLng) && isFinite(rawLng) && rawLng !== 0 ? rawLng : 34.89668;
     const { distanceKm } = calculateDrivingDistanceKm(DEPOT.lat, DEPOT.lng, lat, lng);
     const gpsFormatted = `${lat.toFixed(6)}, ${lng.toFixed(6)}`;
 

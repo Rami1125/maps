@@ -27,19 +27,22 @@ import {
   Info,
   Layers,
 } from 'lucide-react';
-import { ClientSite } from '../types';
+import { ClientSite, DashboardOrder } from '../types';
 import { getClientHistoricalTrend, ClientHistoricalDelivery } from '../utils/clientHistory';
+import { ClientOrdersAccordion } from './ClientOrdersAccordion';
 
 interface UnloadingTrendChartProps {
   clients: ClientSite[];
   selectedClientId?: string;
   onSelectClient?: (client: ClientSite) => void;
+  onOpenDeliveryNote?: (client: ClientSite, order?: DashboardOrder) => void;
 }
 
 export const UnloadingTrendChart: React.FC<UnloadingTrendChartProps> = ({
   clients,
   selectedClientId,
   onSelectClient,
+  onOpenDeliveryNote,
 }) => {
   const [activeClientId, setActiveClientId] = useState<string>(
     selectedClientId || clients[0]?.id || ''
@@ -500,6 +503,23 @@ export const UnloadingTrendChart: React.FC<UnloadingTrendChartProps> = ({
             </tbody>
           </table>
         </div>
+      </div>
+
+      {/* Connected Client Historical Orders from דשבורד_הזמנות */}
+      <div className="bg-neutral-50/70 p-4 rounded-3xl border border-neutral-200">
+        <div className="mb-2 px-1 text-xs font-black text-neutral-800 flex items-center justify-between">
+          <span className="flex items-center gap-1.5">
+            <span>📦</span>
+            <span>היסטוריית הזמנות בפועל עבור {activeClient.name} (מקור נתונים: דשבורד_הזמנות)</span>
+          </span>
+          <span className="text-[10px] text-neutral-500 font-bold">
+            ניתן לפתוח כל הזמנה לפירוט מק"טים והפקת תעודת משלוח
+          </span>
+        </div>
+        <ClientOrdersAccordion
+          client={activeClient}
+          onGenerateDeliveryNote={(order) => onOpenDeliveryNote?.(activeClient, order)}
+        />
       </div>
     </div>
   );

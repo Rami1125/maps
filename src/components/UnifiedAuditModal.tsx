@@ -35,6 +35,7 @@ interface UnifiedAuditModalProps {
   onAddToRoute?: (client: ClientSite) => void;
   initialClientId?: string;
   initialTab?: 'matrix' | 'trends' | 'delivery_note' | 'methodology';
+  initialOrderNumber?: string;
 }
 
 export const UnifiedAuditModal: React.FC<UnifiedAuditModalProps> = ({
@@ -45,6 +46,7 @@ export const UnifiedAuditModal: React.FC<UnifiedAuditModalProps> = ({
   onAddToRoute,
   initialClientId,
   initialTab,
+  initialOrderNumber,
 }) => {
   const [activeTab, setActiveTab] = useState<'matrix' | 'trends' | 'delivery_note' | 'methodology'>(
     initialTab || 'matrix'
@@ -58,6 +60,14 @@ export const UnifiedAuditModal: React.FC<UnifiedAuditModalProps> = ({
     initialClientId || clients[0]?.id || ''
   );
 
+  // Delivery Note generator state
+  const [selectedNoteClientId, setSelectedNoteClientId] = useState<string>(
+    initialClientId || clients[0]?.id || ''
+  );
+  const [selectedTruckId, setSelectedTruckId] = useState<'crane' | 'flatbed'>('crane');
+  const [deliveryNoteNumber, setDeliveryNoteNumber] = useState<string>('DN-2026-0984');
+  const [orderNumber, setOrderNumber] = useState<string>(initialOrderNumber || 'ORD-77410');
+
   React.useEffect(() => {
     if (isOpen) {
       if (initialTab) setActiveTab(initialTab);
@@ -65,16 +75,12 @@ export const UnifiedAuditModal: React.FC<UnifiedAuditModalProps> = ({
         setTrendSelectedClientId(initialClientId);
         setSelectedNoteClientId(initialClientId);
       }
+      if (initialOrderNumber) {
+        setOrderNumber(initialOrderNumber);
+        setDeliveryNoteNumber(`DN-${initialOrderNumber.replace(/\D/g, '') || '2026-0984'}`);
+      }
     }
-  }, [isOpen, initialTab, initialClientId]);
-
-  // Delivery Note generator state
-  const [selectedNoteClientId, setSelectedNoteClientId] = useState<string>(
-    clients[0]?.id || ''
-  );
-  const [selectedTruckId, setSelectedTruckId] = useState<'crane' | 'flatbed'>('crane');
-  const [deliveryNoteNumber, setDeliveryNoteNumber] = useState<string>('DN-2026-0984');
-  const [orderNumber, setOrderNumber] = useState<string>('ORD-77410');
+  }, [isOpen, initialTab, initialClientId, initialOrderNumber]);
 
   const selectedNoteClient = useMemo(() => {
     return clients.find((c) => c.id === selectedNoteClientId) || clients[0];
@@ -602,6 +608,14 @@ export const UnifiedAuditModal: React.FC<UnifiedAuditModalProps> = ({
               onSelectClient={(c) => {
                 setTrendSelectedClientId(c.id);
                 setSelectedNoteClientId(c.id);
+              }}
+              onOpenDeliveryNote={(c, order) => {
+                setSelectedNoteClientId(c.id);
+                if (order?.orderNumber) {
+                  setOrderNumber(order.orderNumber);
+                  setDeliveryNoteNumber(`DN-${order.orderNumber.replace(/\D/g, '') || '2026-0984'}`);
+                }
+                setActiveTab('delivery_note');
               }}
             />
           </div>

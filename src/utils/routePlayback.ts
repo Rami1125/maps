@@ -95,17 +95,25 @@ export function buildRouteCircuitData(
   depot: DepotInfo,
   deliveryRound: DeliveryRound
 ): RouteCircuitData {
+  const safeDepotLat = typeof depot?.lat === 'number' && !isNaN(depot.lat) && isFinite(depot.lat) ? depot.lat : 32.15574;
+  const safeDepotLng = typeof depot?.lng === 'number' && !isNaN(depot.lng) && isFinite(depot.lng) ? depot.lng : 34.89668;
+
+  const validStops = (deliveryRound?.stops || []).filter(
+    (stop) => stop.client && typeof stop.client.lat === 'number' && !isNaN(stop.client.lat) && isFinite(stop.client.lat) &&
+              typeof stop.client.lng === 'number' && !isNaN(stop.client.lng) && isFinite(stop.client.lng)
+  );
+
   const waypoints: RouteWaypoint[] = [
     {
       id: 'depot-start',
       name: 'מגרש סבן (בסיס מוצא)',
-      sublabel: `${depot.address}, ${depot.city}`,
-      lat: depot.lat,
-      lng: depot.lng,
+      sublabel: `${depot?.address || 'רחוב החרש 10'}, ${depot?.city || 'הוד השרון'}`,
+      lat: safeDepotLat,
+      lng: safeDepotLng,
       isDepot: true,
       stopIndex: 0,
     },
-    ...deliveryRound.stops.map((stop) => ({
+    ...validStops.map((stop) => ({
       id: stop.id,
       name: `תחנה #${stop.stopIndex}: ${stop.client.name}`,
       sublabel: `${stop.client.address}, ${stop.client.city}`,
@@ -120,10 +128,10 @@ export function buildRouteCircuitData(
       id: 'depot-end',
       name: 'מגרש סבן (סיום סבב)',
       sublabel: 'סגירת מעגל וחזרה לבסיס',
-      lat: depot.lat,
-      lng: depot.lng,
+      lat: safeDepotLat,
+      lng: safeDepotLng,
       isDepot: true,
-      stopIndex: deliveryRound.stops.length + 1,
+      stopIndex: validStops.length + 1,
     },
   ];
 
@@ -165,16 +173,21 @@ export function interpolateTruckState(
   circuit: RouteCircuitData,
   progress: number // 0..1
 ): InterpolatedTruckState {
-  const clampedProgress = Math.max(0, Math.min(1, progress));
+  const safeProgress = typeof progress === 'number' && !isNaN(progress) && isFinite(progress) ? progress : 0;
+  const clampedProgress = Math.max(0, Math.min(1, safeProgress));
   const { segments, waypoints, totalDistanceKm } = circuit;
 
-  if (segments.length === 0) {
-    const firstWp = waypoints[0];
+  const safeTotalDist = typeof totalDistanceKm === 'number' && !isNaN(totalDistanceKm) && isFinite(totalDistanceKm) ? totalDistanceKm : 0;
+
+  if (!segments || segments.length === 0 || safeTotalDist <= 0) {
+    const firstWp = waypoints && waypoints[0];
+    const safeLat = firstWp && typeof firstWp.lat === 'number' && !isNaN(firstWp.lat) && isFinite(firstWp.lat) ? firstWp.lat : 32.15574;
+    const safeLng = firstWp && typeof firstWp.lng === 'number' && !isNaN(firstWp.lng) && isFinite(firstWp.lng) ? firstWp.lng : 34.89668;
     return {
-      lat: firstWp?.lat ?? 32.14,
-      lng: firstWp?.lng ?? 34.89,
+      lat: safeLat,
+      lng: safeLng,
       bearingDeg: 0,
-      currentSegment: {} as RouteSegment,
+      currentSegment: (segments && segments[0]) ? segments[0] : ({} as RouteSegment),
       segmentProgress: 0,
       overallProgress: 0,
       distanceCoveredKm: 0,
@@ -183,11 +196,11 @@ export function interpolateTruckState(
       statusSubtext: '',
       isAtStop: true,
       activeStopIndex: 0,
-      traveledCoords: [],
+      traveledCoords: [[safeLat, safeLng]],
     };
   }
 
-  const currentDistanceKm = clampedProgress * totalDistanceKm;
+  const currentDistanceKm = clampedProgress * safeTotalDist;
 
   // Find active segment
   let activeSegment = segments[0];
@@ -205,22 +218,26 @@ export function interpolateTruckState(
   }
 
   // Fraction within active segment
-  const segDist = activeSegment.endDistanceKm - activeSegment.startDistanceKm;
+  const segDist = (activeSegment.endDistanceKm ?? 0) - (activeSegment.startDistanceKm ?? 0);
   const segmentProgress =
-    segDist > 0
+    segDist > 0 && !isNaN(segDist)
       ? Math.max(
           0,
           Math.min(1, (currentDistanceKm - activeSegment.startDistanceKm) / segDist)
         )
       : 0;
 
-  // Lat / Lng linear interpolation
-  const currLat =
-    activeSegment.from.lat +
-    segmentProgress * (activeSegment.to.lat - activeSegment.from.lat);
-  const currLng =
-    activeSegment.from.lng +
-    segmentProgress * (activeSegment.to.lng - activeSegment.from.lng);
+  // Safe Lat / Lng linear interpolation
+  const fromLat = typeof activeSegment.from.lat === 'number' && !isNaN(activeSegment.from.lat) && isFinite(activeSegment.from.lat) ? activeSegment.from.lat : 32.15574;
+  const toLat = typeof activeSegment.to.lat === 'number' && !isNaN(activeSegment.to.lat) && isFinite(activeSegment.to.lat) ? activeSegment.to.lat : fromLat;
+  const fromLng = typeof activeSegment.from.lng === 'number' && !isNaN(activeSegment.from.lng) && isFinite(activeSegment.from.lng) ? activeSegment.from.lng : 34.89668;
+  const toLng = typeof activeSegment.to.lng === 'number' && !isNaN(activeSegment.to.lng) && isFinite(activeSegment.to.lng) ? activeSegment.to.lng : fromLng;
+
+  const rawCurrLat = fromLat + segmentProgress * (toLat - fromLat);
+  const rawCurrLng = fromLng + segmentProgress * (toLng - fromLng);
+
+  const currLat = !isNaN(rawCurrLat) && isFinite(rawCurrLat) ? rawCurrLat : fromLat;
+  const currLng = !isNaN(rawCurrLng) && isFinite(rawCurrLng) ? rawCurrLng : fromLng;
 
   // Status phrasing
   let statusHeadline = '';
@@ -262,12 +279,17 @@ export function interpolateTruckState(
     ).toFixed(1)} ק"מ לתחנה`;
   }
 
-  // Traveled coordinates for drawing path trail
+  // Traveled coordinates for drawing path trail (ensuring no NaN values)
   const traveledCoords: [number, number][] = [];
   for (let i = 0; i <= activeSegment.index; i++) {
-    traveledCoords.push([segments[i].from.lat, segments[i].from.lng]);
+    const segFrom = segments[i]?.from;
+    if (segFrom && typeof segFrom.lat === 'number' && !isNaN(segFrom.lat) && typeof segFrom.lng === 'number' && !isNaN(segFrom.lng)) {
+      traveledCoords.push([segFrom.lat, segFrom.lng]);
+    }
   }
-  traveledCoords.push([currLat, currLng]);
+  if (!isNaN(currLat) && !isNaN(currLng)) {
+    traveledCoords.push([currLat, currLng]);
+  }
 
   return {
     lat: currLat,
@@ -277,7 +299,7 @@ export function interpolateTruckState(
     segmentProgress,
     overallProgress: clampedProgress,
     distanceCoveredKm: Math.round(currentDistanceKm * 10) / 10,
-    totalDistanceKm: Math.round(totalDistanceKm * 10) / 10,
+    totalDistanceKm: Math.round(safeTotalDist * 10) / 10,
     statusHeadline,
     statusSubtext,
     isAtStop,

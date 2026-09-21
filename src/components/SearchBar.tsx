@@ -78,10 +78,36 @@ export const SearchBar: React.FC<SearchBarProps> = ({
   return (
     <div
       ref={containerRef}
+      style={{
+        paddingLeft: '10px',
+        marginLeft: '3px',
+        marginTop: '0px',
+        height: '54px',
+        width: '452px',
+        paddingRight: '3px',
+        marginRight: '4px',
+        marginBottom: '5px',
+        paddingTop: '-5px',
+      }}
       className="relative z-30 w-full max-w-md pointer-events-auto transition-all"
     >
       {/* Search Input Box (Google Maps Floating Style) */}
-      <div className="bg-white rounded-2xl shadow-xl border border-neutral-200/80 overflow-hidden backdrop-blur-md transition-shadow focus-within:shadow-2xl focus-within:border-blue-500">
+      <div
+        style={{
+          height: '82px',
+          paddingLeft: '20px',
+          paddingTop: '45px',
+          paddingBottom: '22px',
+          marginRight: '7px',
+          marginLeft: '5px',
+          marginBottom: '18px',
+          marginTop: '-27px',
+          paddingRight: '17px',
+          backgroundColor: '#ffffff',
+          width: '430px',
+        }}
+        className="bg-white rounded-2xl shadow-xl border border-neutral-200/80 overflow-hidden backdrop-blur-md transition-shadow focus-within:shadow-2xl focus-within:border-blue-500"
+      >
         <div className="flex items-center px-4 py-2.5 gap-2.5">
           <button
             type="button"

@@ -126,3 +126,32 @@ export interface GeocodedAddress {
   suggestedCraneSku: string;
   suggestedFlatbedSku: string;
 }
+
+// Item parsed from raw item string in דשבורד_הזמנות
+export interface HistoricalOrderItem {
+  itemNumber: number;
+  sku: string; // מק"ט
+  name: string; // שם מוצר
+  quantity: number; // כמות
+  unit?: string;
+}
+
+// Order record from Google Sheets tab: דשבורד_הזמנות
+export interface DashboardOrder {
+  id: string; // unique internal key
+  orderDate: string; // e.g. "2026-08-14 11:34"
+  orderNumber: string; // מזהה הזמנה (e.g. "6214906")
+  comaxId: string; // קוד לקוח בקומקס (e.g. "612108")
+  clientName: string; // שם לקוח / אתר
+  warehouse: string; // מחסן (e.g. "🏭 4️⃣(החרש)")
+  deliveryAddress: string; // כתובת אספקה
+  rawItemsString: string; // raw string from sheet
+  items: HistoricalOrderItem[]; // parsed items array
+  balesDeposit: string; // פקדון בלות (e.g. "15 בלות", "פטור")
+  palletsDeposit: string; // פקדון משטחים (e.g. "1 משטח", "פטור")
+  assignedDriver: string; // נהג משוייך (e.g. "חכמת/עלי", "עלי", "חכמת (נהג ראשי)")
+  supplyStatus: string; // סטטוס אספקה נוכחי (e.g. "סופק במלואו", "בסידור עבודה")
+  deliveryNoteStatus: string; // תעודת משלוח (e.g. "✅ כן", "⏳ טרם")
+  totalItemsCount: number;
+}
+
