@@ -257,6 +257,7 @@ export default function App() {
             <div
               style={{
                 color: '#0e73e8',
+                marginTop: '-14px',
               }}
               className="w-8 h-8 rounded-xl bg-gradient-to-br from-amber-400 to-amber-500 flex items-center justify-center font-black text-sm shadow-sm"
             >
@@ -268,6 +269,7 @@ export default function App() {
                   paddingLeft: '4px',
                   paddingRight: '6px',
                   paddingBottom: '43px',
+                  marginTop: '-14px',
                 }}
                 className="font-extrabold text-xs md:text-sm tracking-tight text-white leading-none"
               >
@@ -282,7 +284,7 @@ export default function App() {
                   paddingRight: '8px',
                   marginRight: '4px',
                   marginLeft: '8px',
-                  marginTop: '-41px',
+                  marginTop: '-46px',
                   marginBottom: '6px',
                   fontFamily: 'Arial',
                   borderColor: '#a47d17',

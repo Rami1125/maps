@@ -104,13 +104,42 @@ export const ClientDetailsCard: React.FC<ClientDetailsCardProps> = ({
       <div className="px-5 pt-4 pb-3 border-b border-neutral-100 flex items-center justify-between bg-neutral-50/70">
         <div className="flex items-center gap-2 flex-wrap">
           {/* Service SKU Barcode */}
-          <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-xl bg-blue-50 border border-blue-200 text-blue-800 font-bold text-xs tracking-wide shadow-2xs">
+          <div
+            style={{
+              width: '235px',
+              height: '58px',
+              fontFamily: 'Georgia',
+              textAlign: 'center',
+              fontSize: '26px',
+              marginLeft: '-11px',
+              marginRight: '50px',
+              backgroundColor: '#fbf368',
+            }}
+            className="inline-flex items-center justify-center gap-1.5 px-3 py-1 rounded-xl border border-blue-200 text-blue-800 font-bold tracking-wide shadow-2xs"
+          >
             <span>🏷️ מק"ט:</span>
-            <span className="font-mono text-sm text-blue-900 font-black">{truck.serviceSku}</span>
+            <span
+              style={{
+                fontFamily: 'Assistant',
+                fontSize: '33px',
+              }}
+              className="font-mono text-blue-900 font-black"
+            >
+              {truck.serviceSku}
+            </span>
           </div>
 
           {/* District Badge */}
-          <span className="px-2.5 py-0.5 rounded-lg bg-neutral-200/80 text-neutral-800 font-bold text-xs">
+          <span
+            style={{
+              marginRight: '300px',
+              paddingTop: '6px',
+              paddingBottom: '5px',
+              marginLeft: '-13px',
+              marginTop: '-52px',
+            }}
+            className="px-2.5 rounded-lg bg-neutral-200/80 text-neutral-800 font-bold text-xs"
+          >
             {client.district}
           </span>
 

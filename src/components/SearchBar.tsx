@@ -88,6 +88,7 @@ export const SearchBar: React.FC<SearchBarProps> = ({
         marginRight: '4px',
         marginBottom: '5px',
         paddingTop: '-5px',
+        backgroundColor: '#f0effb',
       }}
       className="relative z-30 w-full max-w-md pointer-events-auto transition-all"
     >
@@ -95,13 +96,13 @@ export const SearchBar: React.FC<SearchBarProps> = ({
       <div
         style={{
           height: '82px',
-          paddingLeft: '20px',
+          paddingLeft: '18px',
           paddingTop: '45px',
-          paddingBottom: '22px',
+          paddingBottom: '14px',
           marginRight: '7px',
-          marginLeft: '5px',
+          marginLeft: '4px',
           marginBottom: '18px',
-          marginTop: '-27px',
+          marginTop: '-33px',
           paddingRight: '17px',
           backgroundColor: '#ffffff',
           width: '430px',
@@ -133,7 +134,10 @@ export const SearchBar: React.FC<SearchBarProps> = ({
                 if (query.trim().length >= 2) setIsOpen(true);
               }}
               placeholder="חפש לקוח, כתובת, עיר או מספר לקוח בקומקס..."
-              className="w-full bg-transparent text-sm md:text-base font-semibold text-neutral-800 placeholder-neutral-400 outline-none pr-1"
+              style={{
+                color: '#ce3838',
+              }}
+              className="w-full bg-transparent text-sm md:text-base font-semibold placeholder-neutral-400 outline-none pr-1"
             />
           </div>
 
@@ -272,7 +276,16 @@ export const SearchBar: React.FC<SearchBarProps> = ({
       </div>
 
       {/* Quick Filter Chips */}
-      <div className="flex items-center gap-1.5 mt-2 overflow-x-auto pb-1 no-scrollbar">
+      <div
+        style={{
+          height: '43px',
+          width: '509px',
+          marginLeft: '0px',
+          marginTop: '11px',
+          marginRight: '-49px',
+        }}
+        className="flex items-center gap-1.5 overflow-x-auto pb-1 no-scrollbar"
+      >
         {filterChips.map((chip) => {
           const isActive = activeFilter === chip.id;
           return (
