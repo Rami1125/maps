@@ -1,0 +1,39 @@
+{
+  "id": "/",
+  "name": "נועה AI — מוח לוגיסטי | ח. סבן",
+  "short_name": "סבן מפות",
+  "description": "מערכת ניהול, הפצת משימות וסידור עבודה לחברת ח. סבן חומרי בניין (1994) בע״מ (ח.פ 512001678) עבור ראמי, הראל ויואב",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#f0f2f5",
+  "theme_color": "#0284c7",
+  "orientation": "portrait-primary",
+  "categories": ["business", "productivity", "utilities", "logistics"],
+  "icons": [
+    {
+      "src": "/pwa-192x192.jpg",
+      "sizes": "192x192",
+      "type": "image/jpeg",
+      "purpose": "any"
+    },
+    {
+      "src": "/pwa-512x512.jpg",
+      "sizes": "512x512",
+      "type": "image/jpeg",
+      "purpose": "any"
+    },
+    {
+      "src": "https://i.postimg.cc/c1CfDrBg/Gemini-Generated-Image-wtsaphwtsaphwtsa.jpg",
+      "sizes": "512x512",
+      "type": "image/jpeg",
+      "purpose": "any"
+    },
+    {
+      "src": "/icon.jpg",
+      "sizes": "512x512",
+      "type": "image/jpeg",
+      "purpose": "maskable"
+    }
+  ]
+}

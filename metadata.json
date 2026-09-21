@@ -1,6 +1,6 @@
 {
-  "name": "SabanOS Live Dispatch & Fleet Map v2.0",
-  "description": "מערכת הפצת משימות, תכנון סבבי חלוקה LIFO ומפת לקוחות עבור ח. סבן חומרי בניין (1994) בע״מ",
-  "requestFramePermissions": ["geolocation"],
+  "name": "נועה AI — מוח לוגיסטי | ח. סבן",
+  "description": "מערכת ניהול, הפצת משימות וסידור עבודה לחברת ח. סבן חומרי בניין (1994) בע״מ (ח.פ 512001678) עבור ראמי, הראל ויואב",
+  "requestFramePermissions": ["geolocation", "notifications"],
   "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
 }

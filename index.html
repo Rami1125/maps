@@ -2,21 +2,67 @@
 <html lang="he" dir="rtl">
   <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>SabanOS Live Dispatch & Fleet Map v2.0 | ח. סבן חומרי בניין</title>
-    <meta name="description" content="מערכת הפצת משימות, תכנון סבבי חלוקה LIFO ומפת לקוחות עבור ח. סבן חומרי בניין (1994) בע״מ" />
-    <meta property="og:title" content="SabanOS Live Dispatch & Fleet Map v2.0" />
-    <meta property="og:description" content="מערכת הפצת משימות, תכנון סבבי חלוקה LIFO ומפת לקוחות עבור ח. סבן חומרי בניין (1994) בע״מ" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
+    <title>נועה AI — מוח לוגיסטי | ח. סבן</title>
+    <meta name="description" content="מערכת ניהול, הפצת משימות וסידור עבודה לחברת ח. סבן חומרי בניין (1994) בע״מ (ח.פ 512001678) עבור ראמי, הראל ויואב" />
+    
+    <!-- PWA & Mobile Web App Meta Tags -->
+    <link rel="manifest" href="/manifest.json" />
+    <meta name="theme-color" content="#0284c7" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <meta name="apple-mobile-web-app-title" content="סבן מפות" />
+    <link rel="icon" type="image/jpeg" href="/icon.jpg" />
+    <link rel="shortcut icon" href="https://i.postimg.cc/c1CfDrBg/Gemini-Generated-Image-wtsaphwtsaphwtsa.jpg" />
+    <link rel="apple-touch-icon" href="/apple-touch-icon.jpg" />
+    <link rel="apple-touch-icon" sizes="192x192" href="/pwa-192x192.jpg" />
+    <link rel="apple-touch-icon" sizes="512x512" href="/pwa-512x512.jpg" />
+    
+    <!-- OpenGraph & Twitter Social Cards -->
+    <meta property="og:title" content="נועה AI — מוח לוגיסטי | ח. סבן" />
+    <meta property="og:description" content="מערכת ניהול, הפצת משימות וסידור עבודה לחברת ח. סבן חומרי בניין (1994) בע״מ (ח.פ 512001678) עבור ראמי, הראל ויואב" />
+    <meta property="og:image" content="https://i.postimg.cc/c1CfDrBg/Gemini-Generated-Image-wtsaphwtsaphwtsa.jpg" />
+    <meta property="og:url" content="https://maps-ashen-rho.vercel.app/" />
     <meta property="og:type" content="website" />
     <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:image" content="https://i.postimg.cc/c1CfDrBg/Gemini-Generated-Image-wtsaphwtsaphwtsa.jpg" />
+    
+    <!-- Fonts & Styles -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Assistant:wght@400;500;600;700;800&family=Heebo:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="" />
+
+    <!-- OneSignal Push Notifications SDK v16 -->
+    <script src="https://cdn.onesignal.com/sdks/web/v16/OneSignalSDK.page.js" defer></script>
+    <script>
+      window.OneSignalDeferred = window.OneSignalDeferred || [];
+      OneSignalDeferred.push(async function(OneSignal) {
+        await OneSignal.init({
+          appId: "acc8a2bc-d54e-4261-b3d2-cc5c5f7b39d3",
+          allowLocalhostAsSecureOrigin: true,
+          notifyButton: { enable: false }
+        });
+      });
+    </script>
   </head>
   <body class="bg-neutral-100 text-neutral-900 antialiased overflow-hidden select-none font-['Assistant',sans-serif]">
     <div id="root"></div>
     <script type="module" src="/src/main.tsx"></script>
+    
+    <!-- PWA Service Worker Registration -->
+    <script>
+      if ('serviceWorker' in navigator) {
+        window.addEventListener('load', function() {
+          navigator.serviceWorker.register('/sw.js').then(function(registration) {
+            console.log('[Saban PWA] Service Worker registered with scope:', registration.scope);
+          }).catch(function(err) {
+            console.warn('[Saban PWA] Service Worker registration failed:', err);
+          });
+        });
+      }
+    </script>
   </body>
 </html>
 

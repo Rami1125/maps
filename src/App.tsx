@@ -15,6 +15,8 @@ import { RoutePlanner } from './components/RoutePlanner';
 import { AddClientModal } from './components/AddClientModal';
 import { SyncSettingsModal } from './components/SyncSettingsModal';
 import { UnifiedAuditModal } from './components/UnifiedAuditModal';
+import { PWAInstallButton } from './components/PWAInstallButton';
+import { OfflineIndicator } from './components/OfflineIndicator';
 import {
   Building2,
   Sparkles,
@@ -312,6 +314,9 @@ export default function App() {
 
         {/* Left Section in RTL: Action Controls, Truck Switcher & Sync Status */}
         <div className="flex flex-wrap items-center gap-2 pointer-events-auto">
+          {/* PWA App Install Button & Push Notification */}
+          <PWAInstallButton />
+
           {/* Unified System - Orders, Delivery Notes & Cross-Validation */}
           <button
             type="button"
@@ -501,6 +506,9 @@ export default function App() {
           setIsRoutePlannerOpen(true);
         }}
       />
+
+      {/* 9. Offline Connectivity Indicator */}
+      <OfflineIndicator />
     </div>
   );
 }

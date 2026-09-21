@@ -100,12 +100,13 @@ export const SearchBar: React.FC<SearchBarProps> = ({
           paddingTop: '45px',
           paddingBottom: '14px',
           marginRight: '7px',
-          marginLeft: '4px',
+          marginLeft: '-4px',
           marginBottom: '18px',
-          marginTop: '-33px',
+          marginTop: '-36px',
           paddingRight: '17px',
           backgroundColor: '#ffffff',
           width: '430px',
+          color: '#4a4f09',
         }}
         className="bg-white rounded-2xl shadow-xl border border-neutral-200/80 overflow-hidden backdrop-blur-md transition-shadow focus-within:shadow-2xl focus-within:border-blue-500"
       >
