@@ -194,19 +194,24 @@ export const RoutePlanner: React.FC<RoutePlannerProps> = ({
   };
 
   return (
-    <div className="w-full max-w-md md:max-w-lg bg-white/95 backdrop-blur-md rounded-3xl shadow-2xl border border-neutral-200 overflow-hidden flex flex-col max-h-[85vh] pointer-events-auto transition-all animate-in fade-in slide-in-from-top-4 duration-300">
+    <div className="w-full max-w-md md:max-w-lg bg-white/98 backdrop-blur-md rounded-t-3xl md:rounded-3xl shadow-2xl border-t md:border border-neutral-200 overflow-hidden flex flex-col max-h-[85vh] pointer-events-auto transition-all animate-in fade-in slide-in-from-bottom-4 md:slide-in-from-top-4 duration-300">
+      {/* Mobile Drag Handle */}
+      <div className="md:hidden pt-2 pb-1 flex justify-center cursor-grab shrink-0 bg-neutral-900">
+        <div className="w-10 h-1 rounded-full bg-neutral-600" />
+      </div>
+
       {/* Header */}
-      <div className="px-5 py-3.5 bg-neutral-900 text-white flex items-center justify-between">
-        <div className="flex items-center gap-2.5">
-          <div className="w-8 h-8 rounded-xl bg-blue-600 flex items-center justify-center text-white shadow-sm font-bold text-base">
+      <div className="px-4 md:px-5 py-3 bg-neutral-900 text-white flex items-center justify-between shrink-0">
+        <div className="flex items-center gap-2.5 min-w-0">
+          <div className="w-8 h-8 rounded-xl bg-blue-600 flex items-center justify-center text-white shadow-sm font-bold text-base shrink-0">
             🗺️
           </div>
-          <div>
-            <h3 className="font-extrabold text-sm md:text-base leading-tight">
-              תכנון סבב חלוקה רב-יעדי (2-5 תחנות)
+          <div className="min-w-0">
+            <h3 className="font-extrabold text-xs sm:text-sm md:text-base leading-tight truncate">
+              תכנון סבב חלוקה (2-5 תחנות)
             </h3>
-            <p className="text-[11px] text-blue-300">
-              {truck.name} • {selectedStops.length} יעדים נבחרו (מקסימום 5)
+            <p className="text-[10px] sm:text-[11px] text-blue-300 truncate">
+              {truck.name} • {selectedStops.length} יעדים נבחרו
             </p>
           </div>
         </div>
@@ -214,7 +219,7 @@ export const RoutePlanner: React.FC<RoutePlannerProps> = ({
         <button
           type="button"
           onClick={onClose}
-          className="p-1.5 rounded-full text-neutral-400 hover:text-white hover:bg-neutral-800 transition-colors cursor-pointer"
+          className="min-h-[44px] min-w-[44px] p-2 rounded-xl text-neutral-400 hover:text-white hover:bg-neutral-800 transition-colors cursor-pointer flex items-center justify-center shrink-0"
         >
           <X className="w-5 h-5" />
         </button>
@@ -1025,9 +1030,9 @@ export const RoutePlanner: React.FC<RoutePlannerProps> = ({
       </div>
 
       {/* Footer Controls */}
-      <div className="p-4 bg-neutral-50 border-t border-neutral-200 space-y-2">
+      <div className="p-3 md:p-4 bg-neutral-50/95 backdrop-blur-md border-t border-neutral-200 space-y-2 pb-[calc(0.75rem+env(safe-area-inset-bottom))] sticky bottom-0 z-30 shrink-0">
         {dispatchStatus && (
-          <div className="p-2 bg-blue-50 text-blue-900 font-bold text-xs rounded-lg text-center animate-in fade-in">
+          <div className="p-2 bg-blue-50 text-blue-900 font-bold text-xs rounded-xl text-center animate-in fade-in truncate">
             {dispatchStatus}
           </div>
         )}
@@ -1037,7 +1042,7 @@ export const RoutePlanner: React.FC<RoutePlannerProps> = ({
             type="button"
             onClick={handleCopyWhatsAppText}
             disabled={!deliveryRound || selectedStops.length === 0}
-            className="px-3 py-2 bg-white border border-neutral-300 hover:bg-neutral-100 text-neutral-800 text-xs font-bold rounded-xl flex items-center gap-1.5 transition-colors cursor-pointer disabled:opacity-50"
+            className="min-h-[44px] px-3 py-2 bg-white border border-neutral-300 hover:bg-neutral-100 text-neutral-800 text-xs font-bold rounded-xl flex items-center gap-1.5 transition-colors cursor-pointer disabled:opacity-50 active:scale-95"
           >
             {copied ? <CheckCircle2 className="w-4 h-4 text-emerald-600" /> : <Copy className="w-4 h-4" />}
             <span>{copied ? 'הועתק!' : 'העתק דוח סבב'}</span>
@@ -1047,7 +1052,7 @@ export const RoutePlanner: React.FC<RoutePlannerProps> = ({
             type="button"
             onClick={handleOpenWhatsAppDirect}
             disabled={!deliveryRound || selectedStops.length === 0}
-            className="px-3.5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold rounded-xl flex items-center gap-1.5 shadow-sm transition-all cursor-pointer disabled:opacity-50"
+            className="min-h-[44px] px-3.5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold rounded-xl flex items-center gap-1.5 shadow-sm transition-all cursor-pointer disabled:opacity-50 active:scale-95"
           >
             <ExternalLink className="w-4 h-4" />
             <span>וואטסאפ לנהג</span>
@@ -1057,7 +1062,7 @@ export const RoutePlanner: React.FC<RoutePlannerProps> = ({
             type="button"
             onClick={handleDispatchRound}
             disabled={isDispatching || !deliveryRound || selectedStops.length === 0}
-            className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-xs font-extrabold rounded-xl flex items-center gap-1.5 shadow-md transition-all cursor-pointer disabled:opacity-50"
+            className="min-h-[44px] px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-xs font-extrabold rounded-xl flex items-center gap-1.5 shadow-md transition-all cursor-pointer disabled:opacity-50 active:scale-95"
           >
             <Send className="w-4 h-4" />
             <span>{isDispatching ? 'משדר...' : 'שדר סבב ל-Make.com'}</span>

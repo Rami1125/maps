@@ -252,25 +252,27 @@ export default function App() {
       </div>
 
       {/* 2. Top Floating Navigation & Search Bar (Google Maps Style) */}
-      <div className="absolute top-4 inset-x-4 z-30 pointer-events-none flex flex-col md:flex-row items-start md:items-center justify-between gap-3">
+      <div className="absolute top-3 inset-x-3 md:top-4 md:inset-x-4 z-20 pointer-events-none flex flex-col md:flex-row items-start md:items-center justify-between gap-2 md:gap-3">
         {/* Right Section in RTL: Brand & Google Maps Floating Search Bar */}
-        <div className="flex flex-col sm:flex-row items-start sm:items-center gap-2.5 w-full md:w-auto">
+        <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 w-full md:w-auto">
           {/* Company Brand Logo Pill */}
-          <div className="bg-white/95 backdrop-blur-md rounded-2xl shadow-xl border border-slate-200/80 px-3.5 py-2 flex items-center gap-2.5 pointer-events-auto shrink-0">
-            <div className="w-8 h-8 rounded-xl bg-gradient-to-br from-amber-400 to-amber-500 flex items-center justify-center font-black text-sm text-neutral-950 shadow-sm">
-              סבן
-            </div>
-            <div>
-              <h1 className="font-extrabold text-xs md:text-sm tracking-tight text-neutral-900 leading-none">
-                ח. סבן חומרי בניין (1994) בע״מ
-              </h1>
-              <p className="text-[11px] font-bold text-sky-700 leading-tight mt-0.5">
-                SabanOS Maps — ניהול וסידור הובלות
-              </p>
+          <div className="bg-white/95 backdrop-blur-md rounded-2xl shadow-lg border border-slate-200/80 px-3 py-1.5 md:py-2 flex items-center justify-between sm:justify-start gap-2.5 pointer-events-auto shrink-0">
+            <div className="flex items-center gap-2">
+              <div className="w-7 h-7 md:w-8 md:h-8 rounded-xl bg-gradient-to-br from-amber-400 to-amber-500 flex items-center justify-center font-black text-xs md:text-sm text-neutral-950 shadow-xs shrink-0">
+                סבן
+              </div>
+              <div>
+                <h1 className="font-extrabold text-xs md:text-sm tracking-tight text-neutral-900 leading-none truncate">
+                  ח. סבן חומרי בניין (1994) בע״מ
+                </h1>
+                <p className="text-[10px] md:text-[11px] font-bold text-sky-700 leading-tight mt-0.5">
+                  SabanOS Maps — ניהול הובלות
+                </p>
+              </div>
             </div>
           </div>
 
-          {/* Floating Search Bar with Geocoding trigger */}
+          {/* Floating Search Bar with Smart Filter dropdown */}
           <SearchBar
             clients={clients}
             selectedClient={selectedClient}
@@ -283,9 +285,9 @@ export default function App() {
           />
         </div>
 
-        {/* Left Section in RTL: Action Controls, Truck Switcher & Sync Status */}
-        <div className="flex flex-wrap items-center gap-2 pointer-events-auto">
-          {/* PWA App Install Button & Push Notification */}
+        {/* Left Section in RTL: Action Controls Ribbon */}
+        <div className="w-full md:w-auto overflow-x-auto no-scrollbar py-0.5 flex items-center gap-1.5 pointer-events-auto">
+          {/* PWA App Install Button */}
           <PWAInstallButton />
 
           {/* Unified System - Orders, Delivery Notes & Cross-Validation */}
@@ -296,20 +298,17 @@ export default function App() {
               setIsUnifiedAuditOpen(true);
             }}
             title="מערכת מאוחדת - הזמנות, תעודות משלוח והצלבה (דוחות איתוראן אוג׳-ספט׳)"
-            className="px-3.5 py-2 bg-gradient-to-r from-amber-400 via-orange-400 to-amber-500 hover:from-amber-500 hover:to-orange-500 text-neutral-950 font-black rounded-2xl text-xs flex items-center gap-2 shadow-lg border border-amber-300 transition-all cursor-pointer hover:scale-105 active:scale-95"
+            className="min-h-[36px] px-3 py-1.5 bg-gradient-to-r from-amber-400 via-orange-400 to-amber-500 hover:from-amber-500 hover:to-orange-500 text-neutral-950 font-black rounded-xl text-xs flex items-center gap-1.5 shadow-md border border-amber-300 transition-all cursor-pointer whitespace-nowrap active:scale-95 shrink-0"
           >
-            <span className="text-sm">⚖️</span>
-            <span>מערכת מאוחדת והצלבה</span>
-            <span className="bg-neutral-950 text-amber-300 text-[10px] font-mono px-2 py-0.5 rounded-full font-bold">
-              עמודות I, J, L, P
-            </span>
+            <span className="text-xs">⚖️</span>
+            <span>הצלבה ומערכת מאוחדת</span>
           </button>
 
           {/* Multi-Stop Route Planner Toggle Button */}
           <button
             type="button"
             onClick={() => setIsRoutePlannerOpen(!isRoutePlannerOpen)}
-            className={`px-3.5 py-2 rounded-2xl font-bold text-xs flex items-center gap-2 shadow-lg transition-all cursor-pointer ${
+            className={`min-h-[36px] px-3 py-1.5 rounded-xl font-bold text-xs flex items-center gap-1.5 shadow-md transition-all cursor-pointer whitespace-nowrap active:scale-95 shrink-0 ${
               isRoutePlannerOpen
                 ? 'bg-blue-600 text-white ring-2 ring-blue-400'
                 : routeStops.length > 0
@@ -317,7 +316,7 @@ export default function App() {
                 : 'bg-white/95 text-neutral-800 hover:bg-neutral-100 border border-neutral-200'
             }`}
           >
-            <Route className="w-4 h-4 text-blue-500" />
+            <Route className="w-3.5 h-3.5 text-blue-500" />
             <span>סבב חלוקה {routeStops.length > 0 ? `(${routeStops.length})` : ''}</span>
           </button>
 
@@ -326,10 +325,10 @@ export default function App() {
             type="button"
             onClick={() => setIsAddClientModalOpen(true)}
             title="איתור גיאוגרפי של כתובת חדשה"
-            className="px-3 py-2 bg-white/95 text-neutral-800 hover:bg-neutral-100 border border-neutral-200 rounded-2xl text-xs font-bold flex items-center gap-1.5 shadow-lg transition-colors cursor-pointer"
+            className="min-h-[36px] px-2.5 py-1.5 bg-white/95 text-neutral-800 hover:bg-neutral-100 border border-neutral-200 rounded-xl text-xs font-bold flex items-center gap-1 shadow-md transition-colors cursor-pointer whitespace-nowrap active:scale-95 shrink-0"
           >
-            <Plus className="w-4 h-4 text-blue-600" />
-            <span className="hidden sm:inline">יעד חדש</span>
+            <Plus className="w-3.5 h-3.5 text-blue-600" />
+            <span>יעד חדש</span>
           </button>
 
           {/* Google Sheets Sync Pill */}
@@ -337,10 +336,10 @@ export default function App() {
             type="button"
             onClick={() => setIsSyncModalOpen(true)}
             title="הגדרות סנכרון Google Sheets ו-Make.com"
-            className={`px-3 py-2 rounded-2xl text-xs font-bold flex items-center gap-1.5 shadow-lg border transition-all cursor-pointer ${
+            className={`min-h-[36px] px-2.5 py-1.5 rounded-xl text-xs font-bold flex items-center gap-1.5 shadow-md border transition-all cursor-pointer whitespace-nowrap active:scale-95 shrink-0 ${
               syncStatus.scriptError
-                ? 'bg-amber-950/90 hover:bg-amber-900 text-amber-300 border-amber-500 shadow-amber-900/20'
-                : 'bg-neutral-900/90 hover:bg-neutral-900 text-white border-neutral-700'
+                ? 'bg-amber-950/90 text-amber-300 border-amber-500'
+                : 'bg-neutral-900/90 text-white border-neutral-700'
             }`}
           >
             <span
@@ -353,27 +352,25 @@ export default function App() {
               }`}
             />
             <span className="text-[11px]">
-              {syncStatus.isLive
-                ? 'Sheets חי'
-                : syncStatus.scriptError
-                ? 'נדרש עדכון קוד Apps Script'
-                : 'מאגר 63'}
+              {syncStatus.isLive ? 'Sheets חי' : 'מאגר 63'}
             </span>
           </button>
 
-          {/* Truck Switcher & Fuel Rate Toolbar */}
-          <TruckToolbar
-            currentTruck={currentTruck}
-            trucks={TRUCKS}
-            onSelectTruck={setCurrentTruckType}
-            fuelRateNis={fuelRateNis}
-            onUpdateFuelRate={setFuelRateNis}
-          />
+          {/* Truck Switcher on Desktop (on mobile, driver switcher is inside the Bottom Sheet) */}
+          <div className="hidden lg:flex items-center shrink-0">
+            <TruckToolbar
+              currentTruck={currentTruck}
+              trucks={TRUCKS}
+              onSelectTruck={setCurrentTruckType}
+              fuelRateNis={fuelRateNis}
+              onUpdateFuelRate={setFuelRateNis}
+            />
+          </div>
         </div>
       </div>
 
-      {/* 3. Floating Client Details Card / Depot Card / Route Planner */}
-      <div className="absolute top-24 md:top-28 right-4 bottom-6 z-20 pointer-events-none flex flex-col justify-end md:justify-start">
+      {/* 3. Bottom Sheet (Mobile) & Floating Side Drawer (Desktop) */}
+      <div className="fixed inset-x-0 bottom-0 z-30 pointer-events-none md:static md:z-20 flex flex-col justify-end md:fixed md:top-24 md:right-4 md:bottom-6 md:w-[460px]">
         {/* If Route Planner is open, prioritize it */}
         {isRoutePlannerOpen ? (
           <RoutePlanner
@@ -397,6 +394,8 @@ export default function App() {
             onOpenWhatsAppModal={() => setIsWhatsAppModalOpen(true)}
             onAddToRoute={handleAddStopToRoute}
             isInRoute={routeStops.some((s) => s.id === selectedClient.id)}
+            onSelectTruck={setCurrentTruckType}
+            allTrucks={TRUCKS}
             onOpenTrends={(c) => {
               setSelectedClient(c);
               setAuditInitialTab('trends');
@@ -419,8 +418,8 @@ export default function App() {
         ) : null}
       </div>
 
-      {/* 4. Bottom-Left Controls */}
-      <div className="absolute bottom-6 left-6 z-30 pointer-events-none">
+      {/* 4. Map Tool Controls (Layer z-10, positioned out of way of cards & bottom sheets) */}
+      <div className="absolute top-24 left-3 md:top-auto md:bottom-6 md:left-6 z-10 pointer-events-none">
         <MapControls
           mapLayerType={mapLayerType}
           onChangeLayer={setMapLayerType}

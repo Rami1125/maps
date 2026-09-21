@@ -19,18 +19,23 @@ export const DepotDetailsCard: React.FC<DepotDetailsCardProps> = ({
   const googleMapsUrl = `https://www.google.com/maps/search/?api=1&query=${depot.lat},${depot.lng}`;
 
   return (
-    <div className="w-full md:w-[440px] bg-white/95 backdrop-blur-md rounded-3xl shadow-2xl border border-neutral-200/80 flex flex-col overflow-hidden pointer-events-auto">
+    <div className="w-full md:w-[440px] bg-white/98 backdrop-blur-md rounded-t-3xl md:rounded-3xl shadow-2xl border-t md:border border-neutral-200/80 flex flex-col overflow-hidden pointer-events-auto pb-[calc(0.5rem+env(safe-area-inset-bottom))]">
+      {/* Mobile Drag Handle */}
+      <div className="md:hidden pt-2 pb-1 flex justify-center cursor-grab shrink-0 bg-blue-900">
+        <div className="w-10 h-1 rounded-full bg-blue-700" />
+      </div>
+
       {/* Header */}
-      <div className="px-5 pt-4 pb-3 border-b border-neutral-100 flex items-center justify-between bg-blue-900 text-white">
+      <div className="px-4 md:px-5 pt-3 pb-3 border-b border-neutral-100 flex items-center justify-between bg-blue-900 text-white shrink-0">
         <div className="flex items-center gap-2">
-          <div className="w-9 h-9 rounded-xl bg-amber-400 text-blue-950 flex items-center justify-center font-bold text-lg">
+          <div className="w-9 h-9 rounded-xl bg-amber-400 text-blue-950 flex items-center justify-center font-bold text-lg shrink-0">
             🏗️
           </div>
           <div>
             <span className="text-[10px] font-bold text-amber-300 uppercase tracking-widest block">
               בסיס מוצא ראשי לכל השינוע
             </span>
-            <h3 className="text-base font-black leading-tight">
+            <h3 className="text-sm sm:text-base font-black leading-tight">
               {depot.fullName}
             </h3>
           </div>
@@ -39,7 +44,7 @@ export const DepotDetailsCard: React.FC<DepotDetailsCardProps> = ({
         <button
           type="button"
           onClick={onClose}
-          className="p-1.5 rounded-full text-white/70 hover:text-white hover:bg-white/10 transition-colors cursor-pointer"
+          className="min-h-[44px] min-w-[44px] p-2 rounded-xl text-white/70 hover:text-white hover:bg-white/10 transition-colors cursor-pointer flex items-center justify-center shrink-0"
         >
           <X className="w-5 h-5" />
         </button>

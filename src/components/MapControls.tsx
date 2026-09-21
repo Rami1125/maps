@@ -31,7 +31,7 @@ export const MapControls: React.FC<MapControlsProps> = ({
           type="button"
           onClick={onCenterDepot}
           title="מרכז מפה למגרש סבן (הוד השרון)"
-          className="p-2.5 rounded-xl text-neutral-700 hover:text-blue-600 hover:bg-blue-50 transition-colors cursor-pointer"
+          className="min-h-[44px] min-w-[44px] p-2.5 rounded-xl text-neutral-700 hover:text-blue-600 hover:bg-blue-50 transition-colors cursor-pointer flex items-center justify-center active:scale-95"
         >
           <Compass className="w-5 h-5" />
         </button>
@@ -41,7 +41,7 @@ export const MapControls: React.FC<MapControlsProps> = ({
           type="button"
           onClick={onFitAll}
           title="הצג את כל הלקוחות במפה"
-          className="p-2.5 rounded-xl text-neutral-700 hover:text-blue-600 hover:bg-blue-50 transition-colors cursor-pointer"
+          className="min-h-[44px] min-w-[44px] p-2.5 rounded-xl text-neutral-700 hover:text-blue-600 hover:bg-blue-50 transition-colors cursor-pointer flex items-center justify-center active:scale-95"
         >
           <LocateFixed className="w-5 h-5" />
         </button>
@@ -54,7 +54,7 @@ export const MapControls: React.FC<MapControlsProps> = ({
             setShowLegend(false);
           }}
           title="שכבות מפה"
-          className={`p-2.5 rounded-xl transition-colors cursor-pointer ${
+          className={`min-h-[44px] min-w-[44px] p-2.5 rounded-xl transition-colors cursor-pointer flex items-center justify-center active:scale-95 ${
             showLayers ? 'bg-blue-600 text-white' : 'text-neutral-700 hover:bg-neutral-100'
           }`}
         >
@@ -69,7 +69,7 @@ export const MapControls: React.FC<MapControlsProps> = ({
             setShowLayers(false);
           }}
           title="מקרא מפה"
-          className={`p-2.5 rounded-xl transition-colors cursor-pointer ${
+          className={`min-h-[44px] min-w-[44px] p-2.5 rounded-xl transition-colors cursor-pointer flex items-center justify-center active:scale-95 ${
             showLegend ? 'bg-amber-500 text-white' : 'text-neutral-700 hover:bg-neutral-100'
           }`}
         >
